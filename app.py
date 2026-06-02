@@ -14,10 +14,10 @@ Pipeline
 image
   → tiling (split into N×N tiles with overlap)
   → preprocessing (greyscale → CLAHE → blur)
-  → detection (Hough Circle Transform per tile)
+  → detection (multi-scale matched filter + validation + local Hough refinement)
   → merge + deduplicate (global coordinate space)
   → measurement (physical sizes from scale factor)
-  → risk scoring (per-region, normalised 0–100)
+  → risk scoring (per-region visual risk, 0–100)
   → visualisation (craters + grid + best zone)
 """
 
@@ -37,12 +37,173 @@ from core import tiling, preprocessing, detection, measurement, risk, visualizat
 # Constants
 # ============================================================
 
-DEFAULT_SCALE_MPX = 1.10
+DEFAULT_SCALE_MPX = 5.00
 SUPPORTED_IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp", ".webp"}
 DATASET_DIR_CANDIDATES = [
     Path("data/lroc_nac_roi_toriceliloa_tiles"),
     Path("data/dataset_tiles"),
     Path("dataset_tiles"),
+]
+DEEPMOON_REFERENCE_METRICS = [
+    {
+        "label": "Recall",
+        "value": "92%",
+        "caption": "post-processed test set",
+    },
+    {
+        "label": "Precision",
+        "value": "56%",
+        "caption": "post-processed test set",
+    },
+    {
+        "label": "Median radius error",
+        "value": "7%",
+        "caption": "fractional error",
+    },
+    {
+        "label": "False positives",
+        "value": "11%",
+        "caption": "manual inspection estimate",
+    },
+]
+DEEPMOON_COMPARISON_ROWS = [
+    {
+        "Criterion": "Input data",
+        "ACDLR": "Lunar surface images or local tiles",
+        "DeepMoon": "Global lunar DEM crops derived from LRO/Kaguya data",
+    },
+    {
+        "Criterion": "Core method",
+        "ACDLR": "Classical CV: CLAHE, matched filters, edges and geometric validation",
+        "DeepMoon": "CNN based on U-Net that predicts binary crater-rim masks",
+    },
+    {
+        "Criterion": "Training",
+        "ACDLR": "No training; parameters are explicit and inspectable",
+        "DeepMoon": "Requires labelled catalogues, generated targets and GPU training",
+    },
+    {
+        "Criterion": "Crater extraction",
+        "ACDLR": "Direct circle candidates validated by visual/geometric criteria",
+        "DeepMoon": "Post-CNN template matching extracts x, y and radius from predicted rims",
+    },
+    {
+        "Criterion": "Metrics to mirror",
+        "ACDLR": "Precision, recall, F1, center error and radius error on annotated tiles",
+        "DeepMoon": "Precision, recall, F1 and fractional longitude/latitude/radius errors",
+    },
+    {
+        "Criterion": "Project role",
+        "ACDLR": "Explainable academic demo for landing-risk visualization",
+        "DeepMoon": "Scientific crater-catalogue extraction pipeline",
+    },
+]
+DEEPMOON_PIPELINE_ROWS = [
+    {
+        "Stage": "1. Data source",
+        "ACDLR": "LROC visual tile or uploaded lunar image",
+        "DeepMoon": "Global lunar DEM crops",
+    },
+    {
+        "Stage": "2. Representation",
+        "ACDLR": "Enhanced grayscale image with edges and circular signatures",
+        "DeepMoon": "DEM input paired with binary crater-rim target mask",
+    },
+    {
+        "Stage": "3. Detection",
+        "ACDLR": "Matched filter proposes circles; validators reject weak candidates",
+        "DeepMoon": "CNN predicts rim mask pixels",
+    },
+    {
+        "Stage": "4. Extraction",
+        "ACDLR": "Circle center and radius are produced directly",
+        "DeepMoon": "Template matching converts mask into center and radius",
+    },
+    {
+        "Stage": "5. Decision layer",
+        "ACDLR": "Risk grid and landing point are computed from detected craters",
+        "DeepMoon": "Crater catalogue is aggregated and deduplicated globally",
+    },
+]
+DEEPMOON_METRIC_ALIGNMENT_ROWS = [
+    {
+        "DeepMoon metric": "Recall",
+        "ACDLR benchmark field": "recall",
+        "Meaning": "Annotated craters recovered by the detector",
+    },
+    {
+        "DeepMoon metric": "Precision",
+        "ACDLR benchmark field": "precision",
+        "Meaning": "Detected craters that match annotations",
+    },
+    {
+        "DeepMoon metric": "F1",
+        "ACDLR benchmark field": "f1",
+        "Meaning": "Single score balancing precision and recall",
+    },
+    {
+        "DeepMoon metric": "Fractional coordinate error",
+        "ACDLR benchmark field": "mean_center_error_ratio",
+        "Meaning": "Center error divided by annotated radius",
+    },
+    {
+        "DeepMoon metric": "Fractional radius error",
+        "ACDLR benchmark field": "mean_radius_error_ratio",
+        "Meaning": "Radius error divided by annotated radius",
+    },
+]
+VALIDITY_LIMITATION_ROWS = [
+    {
+        "Area": "DeepMoon comparison",
+        "Limitation": "DeepMoon uses DEM crops; ACDLR uses visual lunar images/tiles.",
+        "Impact": "Scores are not directly interchangeable.",
+        "Mitigation": "Compare method, metrics and protocol; avoid claiming parity.",
+    },
+    {
+        "Area": "Benchmark",
+        "Limitation": "Local manual annotations are still required.",
+        "Impact": "Current comparison is methodological until annotations exist.",
+        "Mitigation": "Annotate tiles and report precision, recall, F1 and errors.",
+    },
+    {
+        "Area": "Detection",
+        "Limitation": "Shadows, illumination direction and degraded rims can mimic craters.",
+        "Impact": "False positives and false negatives remain possible.",
+        "Mitigation": "Tune parameters on annotated validation tiles.",
+    },
+    {
+        "Area": "Scale",
+        "Limitation": "Physical measurements depend on the metres-per-pixel setting.",
+        "Impact": "Risk components can shift if the scale is wrong.",
+        "Mitigation": "Use the correct image scale before comparing tiles.",
+    },
+    {
+        "Area": "Risk score",
+        "Limitation": "The landing-risk score is didactic, not a flight-safety metric.",
+        "Impact": "It cannot certify real landing safety.",
+        "Mitigation": "Present it as visual decision support only.",
+    },
+    {
+        "Area": "Validation",
+        "Limitation": "Tuning and evaluation on the same small set can overfit.",
+        "Impact": "Reported results may look better than real generalization.",
+        "Mitigation": "Separate annotated tiles into tuning and test groups.",
+    },
+    {
+        "Area": "Terrain coverage",
+        "Limitation": "Rocks, true slope, regolith properties and operational lighting are not modelled.",
+        "Impact": "A suggested region can ignore risks outside the crater detector.",
+        "Mitigation": "Declare the scope as visual support, not geological or flight certification.",
+    },
+]
+CLASSICAL_EVOLUTION_STEPS = [
+    "Build a small annotated LROC tile benchmark using DeepMoon-like metrics.",
+    "Report precision, recall, F1, center error and radius error before tuning.",
+    "Tune the classical detector with benchmark evidence instead of visual guesswork.",
+    "Score landing risk with physical components that remain comparable across tiles.",
+    "Present ACDLR and DeepMoon side by side in the interface.",
+    "Document limitations and validity threats explicitly.",
+    "Keep DeepMoon as the neural reference, not as a dependency of the project.",
 ]
 
 
@@ -77,7 +238,7 @@ def load_local_image(image_path: str) -> np.ndarray | None:
     return decode_image_bytes(path.read_bytes())
 
 
-@st.cache_data(show_spinner=False)
+@st.cache_data(show_spinner=False, ttl=5)
 def discover_dataset_images() -> tuple[str | None, list[str]]:
     """Discover local dataset tiles in the expected repository folders."""
     for directory in DATASET_DIR_CANDIDATES:
@@ -162,9 +323,9 @@ with st.sidebar:
         max_value=100.0,
         value=DEFAULT_SCALE_MPX,
         step=0.1,
-        help="LROC NAC ROI_TORICELILOA default: 1.10 m/px",
+        help="Local validation tiles use the official LROC 5M product: 5.00 m/px",
     )
-    st.caption("_Dataset default: LROC NAC ROI_TORICELILOA (1.10 m/px)_")
+    st.caption("_Local validation dataset: LROC NAC ROI_TORICELILOA 5M (5.00 m/px)_")
 
 
 # ============================================================
@@ -208,6 +369,52 @@ def render_dataset_gallery(dataset_files: list[str], selected_path: str) -> None
                 )
         if len(dataset_files) > 12:
             st.caption(f"Mostrando 12 de {len(dataset_files)} tiles disponíveis.")
+
+
+def render_method_comparison() -> None:
+    st.subheader("ACDLR x DeepMoon")
+    st.markdown(
+        "DeepMoon é a referência neural usada para comparação: uma CNN baseada "
+        "em U-Net para extrair crateras de DEMs lunares. O ACDLR mantém uma "
+        "abordagem clássica e usa métricas semelhantes para avaliação."
+    )
+
+    metric_cols = st.columns(len(DEEPMOON_REFERENCE_METRICS))
+    for col, metric in zip(metric_cols, DEEPMOON_REFERENCE_METRICS):
+        with col:
+            st.metric(metric["label"], metric["value"])
+            st.caption(metric["caption"])
+
+    tab_summary, tab_pipeline, tab_metrics, tab_limits = st.tabs([
+        "Resumo",
+        "Pipeline",
+        "Métricas",
+        "Limitações",
+    ])
+
+    with tab_summary:
+        st.dataframe(DEEPMOON_COMPARISON_ROWS, use_container_width=True, hide_index=True)
+
+    with tab_pipeline:
+        st.dataframe(DEEPMOON_PIPELINE_ROWS, use_container_width=True, hide_index=True)
+
+    with tab_metrics:
+        st.dataframe(DEEPMOON_METRIC_ALIGNMENT_ROWS, use_container_width=True, hide_index=True)
+        st.caption(
+            "O ACDLR adapta os erros fracionários do DeepMoon para coordenadas "
+            "em pixels: erro dividido pelo raio anotado."
+        )
+
+    with tab_limits:
+        st.dataframe(VALIDITY_LIMITATION_ROWS, use_container_width=True, hide_index=True)
+        st.caption(
+            "Essas limitações delimitam o que o ACDLR demonstra: uma solução "
+            "clássica, explicável e didática, não um sistema real de navegação."
+        )
+
+    st.markdown("**Roteiro atual inspirado no DeepMoon**")
+    for idx, step in enumerate(CLASSICAL_EVOLUTION_STEPS, start=1):
+        st.markdown(f"{idx}. {step}")
 
 
 def render_results(
@@ -314,6 +521,10 @@ def render_results(
             st.pyplot(fig_heatmap, use_container_width=True)
         with col_table:
             st.markdown("**Region statistics**")
+            st.caption(
+                "Risk is scored from fixed physical components: density/km², "
+                "diameter in metres and crater coverage."
+            )
             rows_data = []
             for r in range(grid_rows):
                 for c in range(grid_cols):
@@ -323,9 +534,16 @@ def render_results(
                         {
                             "Region": f"{best_flag} R{r + 1}·C{c + 1}",
                             "Craters": s.crater_count,
-                            "Density /10kpx²": f"{s.density:.3f}",
-                            "Mean radius px": f"{s.mean_radius_px:.1f}",
+                            "Density /km²": f"{s.density_per_km2:.1f}",
+                            "Mean diam m": f"{s.mean_diameter_m:.1f}",
+                            "Largest diam m": f"{s.largest_diameter_m:.1f}",
                             "Coverage %": f"{s.coverage_ratio * 100:.2f}",
+                            "D/M/L/C": (
+                                f"{s.density_component:.0f}/"
+                                f"{s.mean_size_component:.0f}/"
+                                f"{s.largest_size_component:.0f}/"
+                                f"{s.coverage_component:.0f}"
+                            ),
                             "Risk score": f"{s.risk_score:.1f}",
                             "Label": s.risk_label,
                         }
@@ -416,6 +634,7 @@ def run_analysis(image_bgr: np.ndarray) -> None:
         image_shape=(h, w),
         grid_rows=grid_rows,
         grid_cols=grid_cols,
+        scale_m_per_px=scale_mpx,
     )
     best_r, best_c = risk.best_landing_cell(score_matrix)
 
@@ -459,6 +678,9 @@ st.markdown(
     "de pouso por região e destacar a zona mais segura."
 )
 st.divider()
+
+with st.expander("Comparação com DeepMoon", expanded=True):
+    render_method_comparison()
 
 mode = st.radio(
     "Modo de entrada",

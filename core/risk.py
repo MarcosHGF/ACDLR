@@ -7,15 +7,45 @@ import numpy as np
 from .measurement import Crater
 
 
+DENSITY_WEIGHT = 30.0
+MEAN_SIZE_WEIGHT = 20.0
+LARGEST_SIZE_WEIGHT = 35.0
+COVERAGE_WEIGHT = 15.0
+
+DENSITY_SATURATION_PER_KM2 = 120.0
+MEAN_DIAMETER_SATURATION_M = 80.0
+LARGEST_DIAMETER_SATURATION_M = 140.0
+COVERAGE_SATURATION_PERCENT = 8.0
+
+
+@dataclass(frozen=True)
+class RiskComponents:
+    density: float
+    mean_size: float
+    largest_size: float
+    coverage: float
+
+    @property
+    def total(self) -> float:
+        return float(self.density + self.mean_size + self.largest_size + self.coverage)
+
+
 @dataclass
 class RegionStats:
     row: int
     col: int
     crater_count: int
     density: float
+    density_per_km2: float
     mean_radius_px: float
+    mean_diameter_m: float
     largest_radius_px: float
+    largest_diameter_m: float
     coverage_ratio: float
+    density_component: float
+    mean_size_component: float
+    largest_size_component: float
+    coverage_component: float
     raw_score: float
     risk_score: float
     risk_label: str
@@ -36,18 +66,24 @@ def analyse(
     image_shape: tuple[int, int] | tuple[int, int, int],
     grid_rows: int = 3,
     grid_cols: int = 3,
+    scale_m_per_px: float = 1.10,
 ) -> tuple[np.ndarray, list[list[RegionStats]]]:
     """
     Calcula o risco por célula da grade.
 
     Retorna:
-    - score_matrix: matriz [rows, cols] com risco normalizado de 0 a 100
+    - score_matrix: matriz [rows, cols] com risco visual de 0 a 100
     - stats_grid: matriz [rows][cols] com estatísticas detalhadas
+
+    O score usa limites fisicos fixos e interpretaveis em vez de normalizar
+    sempre pelo pior tile da imagem. Isso torna resultados de imagens
+    diferentes mais comparaveis sem recorrer a aprendizado profundo.
     """
     H, W = image_shape[:2]
     cell_h = H / grid_rows
     cell_w = W / grid_cols
     cell_area = cell_h * cell_w if cell_h > 0 and cell_w > 0 else 1.0
+    cell_area_km2 = max(cell_area * (scale_m_per_px ** 2) / 1_000_000.0, 1e-9)
 
     grid_craters: list[list[list[Crater]]] = [
         [[] for _ in range(grid_cols)] for _ in range(grid_rows)
@@ -70,24 +106,20 @@ def analyse(
                 continue
 
             density = n / cell_area * 10_000.0
-            mean_r = float(np.mean([cr.radius_px for cr in cell]))
-            largest_r = float(np.max([cr.radius_px for cr in cell]))
+            density_per_km2 = n / cell_area_km2
+            mean_diameter_m = float(np.mean([cr.diameter_m for cr in cell]))
+            largest_diameter_m = float(np.max([cr.diameter_m for cr in cell]))
             coverage = float(np.sum([cr.area_px for cr in cell])) / cell_area
 
-            raw[r, c] = (
-                density * 0.30
-                + mean_r * 0.20
-                + largest_r * 0.35
-                + coverage * 100.0 * 0.15
+            components = _risk_components(
+                density_per_km2=density_per_km2,
+                mean_diameter_m=mean_diameter_m,
+                largest_diameter_m=largest_diameter_m,
+                coverage_ratio=coverage,
             )
+            raw[r, c] = components.total
 
-    raw_min = float(raw.min())
-    raw_max = float(raw.max())
-
-    if raw_max > raw_min:
-        norm = (raw - raw_min) / (raw_max - raw_min) * 100.0
-    else:
-        norm = np.zeros_like(raw)
+    score_matrix = np.clip(raw, 0.0, 100.0)
 
     stats_grid: list[list[RegionStats]] = []
 
@@ -98,10 +130,19 @@ def analyse(
             n = len(cell)
 
             density = float(n / cell_area * 10_000.0) if n > 0 else 0.0
+            density_per_km2 = float(n / cell_area_km2) if n > 0 else 0.0
             mean_radius_px = float(np.mean([cr.radius_px for cr in cell])) if cell else 0.0
+            mean_diameter_m = float(np.mean([cr.diameter_m for cr in cell])) if cell else 0.0
             largest_radius_px = float(np.max([cr.radius_px for cr in cell])) if cell else 0.0
+            largest_diameter_m = float(np.max([cr.diameter_m for cr in cell])) if cell else 0.0
             coverage_ratio = float(np.sum([cr.area_px for cr in cell]) / cell_area) if cell else 0.0
-            score = float(norm[r, c])
+            components = _risk_components(
+                density_per_km2=density_per_km2,
+                mean_diameter_m=mean_diameter_m,
+                largest_diameter_m=largest_diameter_m,
+                coverage_ratio=coverage_ratio,
+            )
+            score = float(score_matrix[r, c])
 
             row_stats.append(
                 RegionStats(
@@ -109,9 +150,16 @@ def analyse(
                     col=c,
                     crater_count=n,
                     density=density,
+                    density_per_km2=density_per_km2,
                     mean_radius_px=mean_radius_px,
+                    mean_diameter_m=mean_diameter_m,
                     largest_radius_px=largest_radius_px,
+                    largest_diameter_m=largest_diameter_m,
                     coverage_ratio=coverage_ratio,
+                    density_component=components.density,
+                    mean_size_component=components.mean_size,
+                    largest_size_component=components.largest_size,
+                    coverage_component=components.coverage,
                     raw_score=float(raw[r, c]),
                     risk_score=score,
                     risk_label=_label(score),
@@ -119,7 +167,7 @@ def analyse(
             )
         stats_grid.append(row_stats)
 
-    return norm, stats_grid
+    return score_matrix, stats_grid
 
 
 def best_landing_cell(score_matrix: np.ndarray) -> tuple[int, int]:
@@ -210,3 +258,39 @@ def _label(score: float) -> str:
     if score < 66:
         return "MEDIUM"
     return "HIGH"
+
+
+def _risk_components(
+    density_per_km2: float,
+    mean_diameter_m: float,
+    largest_diameter_m: float,
+    coverage_ratio: float,
+) -> RiskComponents:
+    """Heuristic 0-100 risk components based on physical quantities.
+
+    The denominators are conservative defaults for the current LROC tile scale
+    and can be tuned later with benchmark annotations.
+    """
+    density_component = (
+        min(density_per_km2 / DENSITY_SATURATION_PER_KM2, 1.0)
+        * DENSITY_WEIGHT
+    )
+    mean_size_component = (
+        min(mean_diameter_m / MEAN_DIAMETER_SATURATION_M, 1.0)
+        * MEAN_SIZE_WEIGHT
+    )
+    largest_size_component = (
+        min(largest_diameter_m / LARGEST_DIAMETER_SATURATION_M, 1.0)
+        * LARGEST_SIZE_WEIGHT
+    )
+    coverage_component = (
+        min((coverage_ratio * 100.0) / COVERAGE_SATURATION_PERCENT, 1.0)
+        * COVERAGE_WEIGHT
+    )
+
+    return RiskComponents(
+        density=float(density_component),
+        mean_size=float(mean_size_component),
+        largest_size=float(largest_size_component),
+        coverage=float(coverage_component),
+    )
