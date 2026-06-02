@@ -1,3 +1,64 @@
-data/**
-**/__pycache__/
+# Python cache and build output
 __pycache__/
+**/__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+build/
+dist/
+*.egg-info/
+
+# Virtual environments and local runtimes
+.venv/
+venv/
+env/
+ENV/
+.venv-*/
+
+# Local datasets and generated validation artifacts
+data/**
+artifacts/**
+outputs/**
+results/**
+reports/generated/**
+
+# External repositories cloned only for local comparison
+external/**
+
+# Large scientific/image products
+*.IMG
+*.img
+*.TIF
+*.tif
+*.TIFF
+*.tiff
+*.pyr.tif
+*.PYR.TIF
+*.hdf5
+*.h5
+
+# Keep lightweight source assets trackable when intentionally added
+!output.jpg
+
+# Logs and temporary files
+*.log
+*.tmp
+*.temp
+*.bak
+*.swp
+*.swo
+*.pid
+
+# OS and editor metadata
+.DS_Store
+Thumbs.db
+desktop.ini
+.idea/
+.vscode/
+
+# Streamlit local config
+.streamlit/secrets.toml

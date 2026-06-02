@@ -206,6 +206,25 @@ def _refine_and_validate(
     if best is None:
         return None
 
+    hough_refined = _local_hough_refinement(image_u8, best, strictness)
+    if hough_refined is not None:
+        hough_score = _score_circle(
+            image=image,
+            grad_mag=grad_mag,
+            edges=edges,
+            x=hough_refined.x,
+            y=hough_refined.y,
+            radius=hough_refined.radius,
+            strictness=strictness,
+        )
+        if hough_score is not None and hough_score >= best.score * 0.92:
+            best = Detection(
+                x=hough_refined.x,
+                y=hough_refined.y,
+                radius=hough_refined.radius,
+                score=hough_score,
+            )
+
     # Revalida o melhor candidato encontrado.
     final_score = _score_circle(
         image=image,
@@ -340,7 +359,7 @@ def _local_hough_refinement(
 ) -> Detection | None:
     """
     Hough local, em patch pequeno, apenas para alinhar centro/raio.
-    Não é usado como detector principal.
+    Nao e usado como detector principal.
     """
     x = detection.x
     y = detection.y
