@@ -189,48 +189,52 @@ Em vez de apenas detectar crateras, o projeto organiza essa detecção como uma 
 
 ---
 
-## Comparação com DeepMoon
+## Comparacao com CNN aberta
 
-O ACDLR não incorpora deep learning no pipeline. A comparação neural do projeto fica restrita ao **DeepMoon**, repositório de Ari Silburt e colaboradores para identificação de crateras lunares por CNN: https://github.com/silburt/DeepMoon.
+O ACDLR nao incorpora deep learning no pipeline. A comparacao neural principal
+agora substitui DeepMoon pelo repositorio aberto **crater-identification**:
+https://github.com/sydney-machine-learning/crater-identification.
 
-O paper associado, **Lunar Crater Identification via Deep Learning**, descreve o DeepMoon como um pipeline baseado em DEMs lunares. Ele treina uma CNN inspirada na arquitetura U-Net para prever máscaras binárias de aros de crateras e depois usa template matching para extrair centro e raio das crateras detectadas.
+Esse repositorio esta associado ao artigo **Deep learning framework for crater
+detection and identification on the Moon and Mars**, publicado na Nature/npj
+Space Exploration em 2026: https://www.nature.com/articles/s44453-026-00036-x.
 
-| Critério | ACDLR | DeepMoon |
+A escolha encaixa melhor neste projeto porque o metodo CNN usa YOLO/Ultralytics
+em imagens anotadas no formato YOLO, que e o mesmo formato do novo dataset
+`data/LU3M6TGT_yolo_format`. DeepMoon continua sendo uma referencia historica
+importante, mas usa DEMs lunares e uma pilha legada, entao nao e o melhor
+competidor executavel para tiles visuais anotados.
+
+| Criterio | ACDLR | CNN YOLOv11 |
 |---|---|---|
-| Entrada | Imagens/tiles visuais da superfície lunar | Recortes de DEM lunar global |
-| Método central | Visão computacional clássica com CLAHE, filtro casado, bordas e validação geométrica/fotométrica | CNN baseada em U-Net para prever máscaras de aros de crateras |
-| Treinamento | Não exige treinamento; os parâmetros são explícitos | Exige catálogo anotado, geração de targets e treinamento em GPU |
-| Extração de crateras | Candidatos circulares são validados diretamente no tile | A CNN prevê a máscara e uma etapa posterior extrai `(x, y, r)` por template matching |
-| Métricas comparáveis | Precisão, recall, F1, erro de centro e erro de raio em tiles anotados | Precisão, recall, F1 e erros fracionários de longitude, latitude e raio |
-| Papel no projeto | Ferramenta didática, visual e explicável para risco de pouso | Referência científica neural para extração automática de catálogos de crateras |
+| Entrada | Imagens/tiles visuais da superficie lunar | Imagens/tiles visuais anotados em YOLO |
+| Metodo central | Visao computacional classica com CLAHE, filtro casado, bordas e validacao geometrica/fotometrica | Rede CNN YOLOv11 para deteccao de objetos |
+| Treinamento | Nao exige treinamento; parametros sao explicitos | Exige treino ou pesos `best.pt` treinados |
+| Saida | Circulos `(x, y, r)` | Boxes YOLO convertidos para circulos `(x, y, r)` |
+| Metricas | Precisao, recall, F1, erro de centro e erro de raio | As mesmas metricas, no mesmo dataset |
+| Papel no projeto | Metodo principal, explicavel e sem IA | Competidor neural para medir teto de desempenho |
 
-No paper, o DeepMoon reporta recall pós-processado de 92% no conjunto de teste, precisão pós-processada de 56%, erro fracionário mediano de raio de 7% e uma estimativa de 11% de falsos positivos em uma inspeção manual de novas crateras. Esses resultados são a referência de ambição, não uma dependência do ACDLR.
-
-O ponto principal da comparação é: **DeepMoon aprende padrões por treinamento; ACDLR explicita os critérios visuais e geométricos**. Por isso, a evolução do ACDLR deve mirar métricas semelhantes, mantendo o método clássico.
-
-A interface do Streamlit exibe essa comparação em três níveis:
-
-- resumo metodológico ACDLR x DeepMoon;
-- comparação de pipeline, da entrada até a saída;
-- alinhamento das métricas do DeepMoon com os campos gerados pelo benchmark clássico do ACDLR;
-- limitações e ameaças à validade da comparação.
+O ponto principal da comparacao e: **ACDLR explicita os criterios visuais e
+geometricos; a CNN aprende esses criterios a partir de anotacoes**. Por isso,
+a comparacao executavel roda os dois metodos no mesmo split anotado, com a
+mesma tolerancia de matching.
 
 ---
 
-## Roteiro de evolução sem incorporar DeepMoon
+## Roteiro de evolucao sem incorporar IA no ACDLR
 
 1. Criar um pequeno benchmark anotado manualmente com tiles do LROC NAC ROI_TORICELILOA.
-2. Medir métricas inspiradas no DeepMoon: precisão, recall, F1, erro médio de centro e erro médio de raio.
+2. Medir metricas comparaveis: precisao, recall, F1, erro medio de centro e erro medio de raio.
 3. Ajustar o detector clássico usando esses resultados, não apenas inspeção visual.
 4. Tornar o score de risco mais absoluto e comparável entre imagens.
-5. Exibir na interface uma comparação metodológica direta entre ACDLR e DeepMoon.
+5. Exibir comparacao direta entre ACDLR e a CNN YOLOv11 no mesmo dataset.
 6. Documentar limitações com honestidade: iluminação, sombras, crateras degradadas e falsos positivos.
 
 ---
 
-## Benchmark clássico inspirado no DeepMoon
+## Benchmark classico do ACDLR
 
-O repositório inclui um script para avaliar o pipeline clássico contra anotações manuais usando métricas próximas às usadas pelo DeepMoon:
+O repositorio inclui um script para avaliar o pipeline classico contra anotacoes manuais usando metricas comparaveis:
 
 ```bash
 python benchmark_classical.py --images-dir data/lroc_nac_roi_toriceliloa_tiles --annotations-dir data/annotations
@@ -265,9 +269,92 @@ Também é aceito JSON como lista de objetos ou objeto com chave `craters`.
 
 ---
 
+## Comparacao executavel ACDLR x CNN YOLOv11
+
+O comparador principal agora e o YOLOv11/CNN do repositorio aberto
+`sydney-machine-learning/crater-identification`. O repo fica em
+`external/crater-identification` e o ACDLR continua sem IA.
+
+Para treinar um baseline CNN pequeno e comparar os dois metodos no mesmo
+dataset anotado:
+
+```bash
+python scripts/run_acdlr_vs_crater_cnn_comparison.py --max-images 5
+```
+
+O script gera:
+
+- `artifacts/acdlr_vs_crater_cnn/comparison_report.md`;
+- `artifacts/acdlr_vs_crater_cnn/visual_comparison.png`;
+- `artifacts/acdlr_vs_crater_cnn/acdlr/acdlr_yolo_summary.json`;
+- `artifacts/acdlr_vs_crater_cnn/crater_cnn_yolo/cnn_yolo_summary.json`.
+
+Se quiser treinar a CNN separadamente antes da comparacao:
+
+```bash
+python scripts/train_crater_cnn_yolo.py --epochs 1 --fraction 0.02
+python scripts/benchmark_crater_cnn_yolo.py ^
+  --weights artifacts/crater_cnn_yolo_train/moon_small/weights/best.pt ^
+  --max-images 5 ^
+  --conf 0.001 ^
+  --iou 0.15 ^
+  --max-det 150
+```
+
+O `yolo11n.pt` original do repo e usado como base YOLO. Para metricas honestas
+de crateras, use `best.pt` ou `last.pt` treinado no dataset de crateras.
+
+---
+
+## Benchmark no novo dataset YOLO anotado
+
+O dataset `data/LU3M6TGT_yolo_format` usa imagens em `images/` e anotacoes
+YOLO em `labels/`. Para avaliar o ACDLR nesse formato com criterio mais rigido:
+
+```bash
+python scripts/benchmark_yolo_dataset.py ^
+  --split valid ^
+  --max-images 25 ^
+  --out-dir artifacts/yolo_benchmark_final25
+```
+
+Configuracao recomendada com tolerancia permissiva usada no comparador:
+
+```bash
+python scripts/benchmark_yolo_dataset.py ^
+  --split valid ^
+  --max-images 25 ^
+  --out-dir artifacts/yolo_benchmark_cnn_tolerance25 ^
+  --min-radius 4 ^
+  --max-radius 70 ^
+  --canny-threshold 45 ^
+  --strictness 16 ^
+  --center-tolerance 1.34 ^
+  --radius-tolerance 1.0
+```
+
+Saidas:
+
+- `artifacts/yolo_benchmark_final25/acdlr_yolo_report.md`;
+- `artifacts/yolo_benchmark_cnn_tolerance25/acdlr_yolo_report.md`;
+- `artifacts/yolo_benchmark_cnn_tolerance25/acdlr_yolo_summary.json`;
+- `artifacts/yolo_benchmark_cnn_tolerance25/visuals/`.
+
+Para gerar a comparacao visual completa ACDLR x CNN:
+
+```bash
+python scripts/run_acdlr_vs_crater_cnn_comparison.py --max-images 5
+```
+
+O treino padrao acima e propositalmente pequeno, usado como smoke test. Para
+uma CNN competitiva de verdade, aumente `--cnn-train-epochs`,
+`--cnn-train-fraction` e avalie mais imagens.
+
+---
+
 ## Ajuste do detector clássico
 
-Depois de criar anotações manuais, a etapa seguinte é ajustar os parâmetros do detector com evidência quantitativa. O script abaixo executa uma busca em grade e ordena os resultados por F1, seguindo a mesma lógica geral usada pelo DeepMoon para escolher hiperparâmetros em validação.
+Depois de criar anotacoes manuais, a etapa seguinte e ajustar os parametros do detector com evidencia quantitativa. O script abaixo executa uma busca em grade e ordena os resultados por F1, mantendo o ACDLR como metodo classico sem treino neural.
 
 ```bash
 python tune_classical.py --images-dir data/lroc_nac_roi_toriceliloa_tiles --annotations-dir data/annotations
@@ -382,7 +469,7 @@ python tune_classical.py --images-dir data/lroc_nac_roi_toriceliloa_tiles --anno
 Este projeto foi inspirado e apoiado conceitualmente por referências como:
 
 - Lunar Crater Detector
-- DeepMoon / CNN para crateras lunares
+- YOLOv11/CNN para deteccao de crateras
 - OpenCV Hough Circle Transform
 - OpenCV Canny Edge Detection
 - Moon Crater Database
@@ -391,12 +478,12 @@ Este projeto foi inspirado e apoiado conceitualmente por referências como:
 
 ## Limitações e ameaças à validade
 
-O ACDLR é uma ferramenta acadêmica de demonstração. A comparação com o DeepMoon ajuda a organizar a avaliação, mas não transforma o projeto em um sistema científico equivalente ao DeepMoon nem em uma solução real de navegação.
+O ACDLR e uma ferramenta academica de demonstracao. A comparacao com a CNN YOLOv11 ajuda a organizar a avaliacao, mas nao transforma o projeto em um sistema cientifico de navegacao real.
 
 | Área | Limitação | Impacto | Mitigação |
 |---|---|---|---|
-| Comparação com DeepMoon | DeepMoon usa DEMs lunares; ACDLR usa imagens/tiles visuais | Os números dos dois sistemas não são diretamente intercambiáveis | Comparar método, métricas e protocolo; evitar alegar equivalência direta |
-| Benchmark | O conjunto local anotado ainda precisa ser criado | A comparação permanece metodológica até haver anotações | Anotar tiles e reportar precisão, recall, F1 e erros normalizados |
+| Comparacao com CNN | A CNN pode ser treinada no dataset anotado; ACDLR nao usa treino | Se treino e validacao forem misturados, o resultado fica otimista | Treinar no `train`, avaliar no `valid` e reportar parametros |
+| Benchmark | O conjunto anotado deve ter split claro e exemplos suficientes | Um teste pequeno serve para validar pipeline, nao conclusao final | Aumentar `--max-images` e avaliar o split `valid` completo |
 | Detecção | Sombras, iluminação lateral, crateras degradadas e textura do relevo podem confundir o detector | Pode haver falsos positivos e falsos negativos | Ajustar parâmetros com validação anotada e registrar casos de erro |
 | Escala | Medidas físicas dependem do valor de metros por pixel | O score de risco muda se a escala estiver incorreta | Usar a escala correta do dataset antes de comparar tiles |
 | Score de risco | A pontuação é didática e simplificada | Não certifica segurança real de pouso | Apresentar como apoio visual à decisão, não como métrica operacional |
