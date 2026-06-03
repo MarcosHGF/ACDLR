@@ -204,13 +204,15 @@ def _draw_matches(
             1,
         )
 
+    header_h = 54
+    header = np.zeros((header_h, vis.shape[1], 3), dtype=np.uint8)
     _put_text(
-        vis,
+        header,
         f"P={result.precision:.2f} R={result.recall:.2f} F1={result.f1:.2f}",
-        (8, 18),
+        (8, 20),
     )
-    _put_text(vis, "green=TP red=FP yellow=FN", (8, 36), scale=0.42)
-    return vis
+    _put_text(header, "green=TP red=FP yellow=FN", (8, 40), scale=0.42)
+    return np.vstack([header, vis])
 
 
 def _write_csv(path: Path, rows: list[dict[str, int | float | str]]) -> None:

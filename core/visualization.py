@@ -133,19 +133,6 @@ def draw_landing_point(
     )
     cv2.circle(vis, (x, y), 10, LANDING_POINT_COLOR, 2)
     cv2.circle(vis, (x, y), 3, LANDING_POINT_COLOR, -1)
-
-    label = f"Landing point | clearance ~ {landing_point.clearance_m:.1f} m"
-    text_x = min(max(10, x + 14), max(10, vis.shape[1] - 280))
-    text_y = max(24, y - 10)
-
-    _put_text(
-        vis,
-        label,
-        (text_x, text_y),
-        scale=0.55,
-        color=(255, 255, 255),
-        bold=True,
-    )
     return vis
 
 
@@ -207,50 +194,44 @@ def _draw_legend(
     include_landing_point: bool = True,
 ) -> np.ndarray:
     vis = image.copy()
-    h, w = vis.shape[:2]
+    _, w = vis.shape[:2]
 
-    box_w = 330
-    box_h = 140 if include_landing_point else 112
+    header_h = 92 if include_landing_point else 68
+    header = np.full((header_h, w, 3), 15, dtype=np.uint8)
+    cv2.line(header, (0, header_h - 1), (w, header_h - 1), (70, 70, 70), 1)
 
-    x1 = 18
-    y1 = 18
-    x2 = min(x1 + box_w, w - 18)
-    y2 = min(y1 + box_h, h - 18)
+    x1 = 14
+    row_y = 25
+    _put_text(header, "Legend", (x1, row_y), scale=0.55, bold=True)
 
-    overlay = vis.copy()
-    cv2.rectangle(overlay, (x1, y1), (x2, y2), (15, 15, 15), -1)
-    cv2.addWeighted(overlay, 0.62, vis, 0.38, 0, vis)
-    cv2.rectangle(vis, (x1, y1), (x2, y2), (230, 230, 230), 1)
+    item_x = x1 + 92
+    cv2.circle(header, (item_x, row_y - 4), 9, CRATER_RING, 2)
+    cv2.circle(header, (item_x, row_y - 4), 2, CRATER_CENTER, -1)
+    _put_text(header, "detected crater", (item_x + 18, row_y), scale=0.48)
 
-    _put_text(vis, "Legend", (x1 + 12, y1 + 22), scale=0.60, bold=True)
+    item_x = min(item_x + 190, max(14, w - 260))
+    cv2.rectangle(header, (item_x, row_y - 14), (item_x + 22, row_y + 6), BEST_BORDER, 2)
+    _put_text(header, "safest region", (item_x + 30, row_y), scale=0.48)
 
-    row_y = y1 + 44
-    cv2.circle(vis, (x1 + 20, row_y), 10, CRATER_RING, 2)
-    cv2.circle(vis, (x1 + 20, row_y), 2, CRATER_CENTER, -1)
-    _put_text(vis, "Green ring = detected crater", (x1 + 42, row_y + 4), scale=0.52)
-
-    row_y += 24
-    cv2.rectangle(vis, (x1 + 10, row_y - 9), (x1 + 30, row_y + 9), BEST_BORDER, 2)
-    _put_text(vis, "Green border = safest region", (x1 + 42, row_y + 4), scale=0.52)
-
-    row_y += 24
-    cv2.rectangle(vis, (x1 + 10, row_y - 9), (x1 + 30, row_y + 9), WARN_BORDER, 2)
-    cv2.rectangle(vis, (x1 + 34, row_y - 9), (x1 + 54, row_y + 9), DANGER_BORDER, 2)
-    _put_text(vis, "Orange/red = higher risk", (x1 + 66, row_y + 4), scale=0.52)
+    row_y += 30
+    item_x = x1
+    cv2.rectangle(header, (item_x, row_y - 14), (item_x + 22, row_y + 6), WARN_BORDER, 2)
+    cv2.rectangle(header, (item_x + 28, row_y - 14), (item_x + 50, row_y + 6), DANGER_BORDER, 2)
+    _put_text(header, "higher risk", (item_x + 60, row_y), scale=0.48)
 
     if include_landing_point:
-        row_y += 24
+        item_x = min(x1 + 190, max(14, w - 280))
         cv2.drawMarker(
-            vis,
-            (x1 + 20, row_y),
+            header,
+            (item_x + 10, row_y - 4),
             LANDING_POINT_COLOR,
             markerType=cv2.MARKER_CROSS,
             markerSize=18,
             thickness=2,
         )
-        _put_text(vis, "White cross = landing point", (x1 + 42, row_y + 4), scale=0.52)
+        _put_text(header, "landing point", (item_x + 30, row_y), scale=0.48)
 
-    return vis
+    return np.vstack([header, vis])
 
 
 def _ensure_bgr(image: np.ndarray) -> np.ndarray:

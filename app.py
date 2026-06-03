@@ -24,6 +24,7 @@ image
 from __future__ import annotations
 
 import json
+import os
 import time
 from pathlib import Path
 
@@ -31,7 +32,7 @@ import cv2
 import numpy as np
 import streamlit as st
 
-from core import tiling, preprocessing, detection, measurement, risk, visualization
+from core import tiling, preprocessing, detection, measurement, risk, visualization, evaluation
 
 
 # ============================================================
@@ -46,6 +47,12 @@ DATASET_DIR_CANDIDATES = [
     Path("data/dataset_tiles"),
     Path("dataset_tiles"),
 ]
+CNN_WEIGHTS_PATH = Path("artifacts/crater_cnn_yolo_train/moon_small/weights/best.pt")
+CNN_IMGSZ = 416
+CNN_CONF = 0.001
+CNN_IOU = 0.15
+CNN_MAX_DET = 150
+CNN_DEVICE = "cpu"
 CNN_REFERENCE_METRICS = [
     {
         "label": "ACDLR F1",
@@ -260,6 +267,51 @@ def discover_dataset_images() -> tuple[str | None, list[str]]:
     return None, []
 
 
+@st.cache_resource(show_spinner=False)
+def load_cnn_detector(weights_path: str):
+    """Load the YOLOv11 CNN comparison model."""
+    config_dir = Path("artifacts/ultralytics_config").resolve()
+    config_dir.mkdir(parents=True, exist_ok=True)
+    os.environ.setdefault("YOLO_CONFIG_DIR", str(config_dir))
+
+    from ultralytics import YOLO
+
+    return YOLO(weights_path)
+
+
+def predict_cnn_circles(image_bgr: np.ndarray) -> tuple[np.ndarray | None, str | None]:
+    """Run the trained CNN baseline and convert YOLO boxes to crater circles."""
+    if not CNN_WEIGHTS_PATH.exists():
+        return None, f"Pesos CNN nao encontrados: `{CNN_WEIGHTS_PATH}`"
+
+    try:
+        model = load_cnn_detector(str(CNN_WEIGHTS_PATH.resolve()))
+        predictions = model.predict(
+            source=image_bgr,
+            imgsz=CNN_IMGSZ,
+            conf=CNN_CONF,
+            iou=CNN_IOU,
+            max_det=CNN_MAX_DET,
+            device=CNN_DEVICE,
+            verbose=False,
+        )
+    except Exception as exc:
+        return None, f"Nao foi possivel executar a CNN YOLOv11: {exc}"
+
+    if not predictions or predictions[0].boxes is None or len(predictions[0].boxes) == 0:
+        return np.empty((0, 3), dtype=np.float32), None
+
+    xywh = predictions[0].boxes.xywh.detach().cpu().numpy()
+    circles: list[list[float]] = []
+    for cx, cy, width, height in xywh:
+        radius = (float(width) + float(height)) / 4.0
+        if radius <= 0:
+            continue
+        circles.append([float(cx), float(cy), radius])
+
+    return np.asarray(circles, dtype=np.float32), None
+
+
 # ============================================================
 # Sidebar — parameters
 # ============================================================
@@ -345,6 +397,161 @@ def show_image_header(image_bgr: np.ndarray, scale_m_per_px: float) -> None:
         f"Image loaded — {w} × {h} px  "
         f"({w * scale_m_per_px / 1000:.2f} × {h * scale_m_per_px / 1000:.2f} km at {scale_m_per_px:.2f} m/px)"
     )
+
+
+def draw_detection_overlay(
+    image_bgr: np.ndarray,
+    circles: np.ndarray,
+    title: str,
+    color: tuple[int, int, int],
+) -> np.ndarray:
+    """Draw detection circles with a header band outside the image area."""
+    vis = image_bgr.copy()
+    rows = np.asarray(circles, dtype=float) if circles.size else np.empty((0, 3), dtype=float)
+    for x, y, radius in rows[:, :3]:
+        cv2.circle(vis, (int(round(x)), int(round(y))), int(round(radius)), color, 1)
+        cv2.circle(vis, (int(round(x)), int(round(y))), 2, color, -1)
+
+    header_h = 54
+    header = np.zeros((header_h, vis.shape[1], 3), dtype=np.uint8)
+    _put_overlay_text(header, title, (8, 22), scale=0.58, bold=True)
+    _put_overlay_text(header, f"{len(rows)} detections", (8, 43), scale=0.46)
+    return np.vstack([header, vis])
+
+
+def render_selected_image_cnn_comparison(
+    image_bgr: np.ndarray,
+    acdlr_circles: np.ndarray,
+    image_path: str | None,
+) -> None:
+    st.divider()
+    st.subheader("Comparação da detecção final: ACDLR x CNN YOLOv11")
+
+    with st.spinner("Executando CNN YOLOv11 para comparar com o ACDLR..."):
+        cnn_circles, error = predict_cnn_circles(image_bgr)
+
+    if error is not None:
+        st.info(error)
+        st.code(
+            "python scripts/run_acdlr_vs_crater_cnn_comparison.py --max-images 5 --force-cnn-train",
+            language="bash",
+        )
+        return
+
+    if cnn_circles is None:
+        cnn_circles = np.empty((0, 3), dtype=np.float32)
+
+    acdlr_overlay = cv2.cvtColor(
+        draw_detection_overlay(image_bgr, acdlr_circles, "ACDLR", (80, 255, 100)),
+        cv2.COLOR_BGR2RGB,
+    )
+    cnn_overlay = cv2.cvtColor(
+        draw_detection_overlay(image_bgr, cnn_circles, "CNN YOLOv11", (70, 70, 255)),
+        cv2.COLOR_BGR2RGB,
+    )
+
+    col_a, col_b = st.columns(2)
+    with col_a:
+        st.image(acdlr_overlay, caption="ACDLR — processamento clássico", use_container_width=True)
+    with col_b:
+        st.image(cnn_overlay, caption="CNN YOLOv11 — baseline neural", use_container_width=True)
+
+    st.caption(
+        "Esta comparação usa a mesma imagem analisada no app. "
+        "ACDLR permanece sem IA; a CNN é apenas o comparador externo."
+    )
+
+    label_path = find_yolo_label_for_image(image_path)
+    if label_path is None:
+        st.caption("Sem label YOLO encontrado para esta imagem; exibindo apenas comparação visual.")
+        return
+
+    truth = load_yolo_ground_truth(label_path, image_bgr.shape)
+    acdlr_eval = evaluation.evaluate_circles(
+        acdlr_circles,
+        truth,
+        center_tolerance_ratio=1.34,
+        radius_tolerance_ratio=1.0,
+    )
+    cnn_eval = evaluation.evaluate_circles(
+        cnn_circles,
+        truth,
+        center_tolerance_ratio=1.34,
+        radius_tolerance_ratio=1.0,
+    )
+
+    st.markdown("**Métricas nesta imagem selecionada**")
+    st.dataframe(
+        [
+            metric_row("ACDLR", acdlr_eval),
+            metric_row("CNN YOLOv11", cnn_eval),
+        ],
+        use_container_width=True,
+        hide_index=True,
+    )
+
+
+def find_yolo_label_for_image(image_path: str | None) -> Path | None:
+    if not image_path:
+        return None
+    path = Path(image_path)
+    if path.parent.name != "images":
+        return None
+    label_path = path.parent.parent / "labels" / f"{path.stem}.txt"
+    return label_path if label_path.exists() else None
+
+
+def load_yolo_ground_truth(
+    label_path: Path,
+    image_shape: tuple[int, int] | tuple[int, int, int],
+) -> list[evaluation.GroundTruthCrater]:
+    h, w = image_shape[:2]
+    craters: list[evaluation.GroundTruthCrater] = []
+    with label_path.open("r", encoding="utf-8") as handle:
+        for line in handle:
+            parts = line.strip().split()
+            if len(parts) < 5:
+                continue
+            _, cx, cy, bw, bh = parts[:5]
+            radius_px = ((float(bw) * w) + (float(bh) * h)) / 4.0
+            if radius_px <= 0:
+                continue
+            craters.append(
+                evaluation.GroundTruthCrater(
+                    cx=float(cx) * w,
+                    cy=float(cy) * h,
+                    radius_px=radius_px,
+                )
+            )
+    return craters
+
+
+def metric_row(method: str, result: evaluation.EvaluationResult) -> dict[str, int | str]:
+    return {
+        "Método": method,
+        "Detecções": result.detections,
+        "GT": result.ground_truth,
+        "TP": result.true_positive,
+        "FP": result.false_positive,
+        "FN": result.false_negative,
+        "Precision": f"{result.precision:.3f}",
+        "Recall": f"{result.recall:.3f}",
+        "F1": f"{result.f1:.3f}",
+    }
+
+
+def _put_overlay_text(
+    image: np.ndarray,
+    text: str,
+    origin: tuple[int, int],
+    scale: float = 0.5,
+    color: tuple[int, int, int] = (255, 255, 255),
+    bold: bool = False,
+) -> None:
+    x, y = origin
+    thickness = 2 if bold else 1
+    cv2.putText(image, text, (x + 1, y + 1), cv2.FONT_HERSHEY_SIMPLEX, scale, (0, 0, 0), thickness + 1)
+    cv2.putText(image, text, (x, y), cv2.FONT_HERSHEY_SIMPLEX, scale, color, thickness)
 
 
 def render_dataset_gallery(dataset_files: list[str], selected_path: str) -> None:
@@ -476,6 +683,7 @@ def _latest_comparison_metrics() -> list[dict[str, str]] | None:
 def render_results(
     image_bgr: np.ndarray,
     prep_full,
+    circles: np.ndarray,
     craters,
     stats: dict,
     score_matrix: np.ndarray,
@@ -485,6 +693,7 @@ def render_results(
     grid_rows: int,
     grid_cols: int,
     landing_point,
+    image_path: str | None = None,
 ) -> None:
     img_rgb = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)
     img_craters = cv2.cvtColor(
@@ -606,6 +815,12 @@ def render_results(
                     )
             st.dataframe(rows_data, use_container_width=True, hide_index=True)
 
+    render_selected_image_cnn_comparison(
+        image_bgr=image_bgr,
+        acdlr_circles=circles,
+        image_path=image_path,
+    )
+
     st.divider()
     st.subheader("💾 Export")
 
@@ -635,7 +850,7 @@ def render_results(
         )
 
 
-def run_analysis(image_bgr: np.ndarray) -> None:
+def run_analysis(image_bgr: np.ndarray, image_path: str | None = None) -> None:
     progress = st.progress(0, text="Starting pipeline…")
     t_start = time.perf_counter()
 
@@ -710,6 +925,7 @@ def run_analysis(image_bgr: np.ndarray) -> None:
     render_results(
         image_bgr=image_bgr,
         prep_full=prep_full,
+        circles=circles,
         craters=craters,
         stats=stats,
         score_matrix=score_matrix,
@@ -719,6 +935,7 @@ def run_analysis(image_bgr: np.ndarray) -> None:
         grid_rows=grid_rows,
         grid_cols=grid_cols,
         landing_point=landing_point,
+        image_path=image_path,
     )
 
 
@@ -746,6 +963,7 @@ mode = st.radio(
 )
 
 analysis_image: np.ndarray | None = None
+analysis_image_path: str | None = None
 
 
 # ============================================================
@@ -782,6 +1000,7 @@ if mode == "Dataset padrão":
 
         if st.button("▶ Run Analysis on selected dataset tile", type="primary", use_container_width=True):
             analysis_image = selected_image
+            analysis_image_path = selected_path
 
 
 # ============================================================
@@ -813,6 +1032,7 @@ if mode == "Enviar imagem":
 
         if st.button("▶ Run Analysis on uploaded image", type="primary", use_container_width=True):
             analysis_image = image_bgr
+            analysis_image_path = None
 
 
 # ============================================================
@@ -820,4 +1040,4 @@ if mode == "Enviar imagem":
 # ============================================================
 
 if analysis_image is not None:
-    run_analysis(analysis_image)
+    run_analysis(analysis_image, image_path=analysis_image_path)

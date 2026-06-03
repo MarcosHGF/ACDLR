@@ -1,0 +1,36 @@
+[project]
+name = "acdlr"
+version = "0.1.0"
+description = "Classical computer-vision pipeline for lunar crater detection and visual landing-risk estimation."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+keywords = [
+  "computer-vision",
+  "lunar-craters",
+  "opencv",
+  "image-processing",
+  "benchmark",
+]
+authors = [
+  { name = "ACDLR Team" },
+]
+dependencies = [
+  "streamlit>=1.32.0",
+  "opencv-python-headless>=4.9.0",
+  "numpy>=1.26.0",
+  "matplotlib>=3.8.0",
+  "Pillow>=10.2.0",
+  "tifffile>=2024.2.12",
+  "h5py>=3.10.0",
+  "scikit-image>=0.22.0",
+  "ultralytics>=8.3.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"

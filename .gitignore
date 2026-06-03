@@ -21,6 +21,8 @@ ENV/
 
 # Local datasets and generated validation artifacts
 data/**
+!data/
+!data/README.md
 artifacts/**
 outputs/**
 results/**

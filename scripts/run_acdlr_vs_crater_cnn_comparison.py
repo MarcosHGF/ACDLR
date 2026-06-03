@@ -2,7 +2,7 @@ from __future__ import annotations
 
 """
 Run the actual project comparison:
-    MEU METODO: ACDLR, image processing only
+    ACDLR, image processing only
     CNN: YOLOv11 crater detector inspired by the open 2026 crater repo
 
 Both methods are evaluated on the same YOLO-format annotations.
@@ -235,26 +235,23 @@ def _write_visual_comparison(
 
     panels = [
         (
-            "MEU METODO: ACDLR",
-            f"P={acdlr['precision']:.3f} R={acdlr['recall']:.3f} F1={acdlr['f1']:.3f}",
+            "ACDLR",
             acdlr_img,
         ),
         (
             "CNN: YOLOv11 CRATER",
-            f"P={cnn['precision']:.3f} R={cnn['recall']:.3f} F1={cnn['f1']:.3f}",
             cnn_img,
         ),
     ]
 
     target_h = 520
     rendered = []
-    for title, subtitle, image in panels:
+    for title, image in panels:
         h, w = image.shape[:2]
         scale = target_h / max(h, 1)
         resized = cv2.resize(image, (max(1, int(w * scale)), target_h), interpolation=cv2.INTER_AREA)
-        band = np.zeros((64, resized.shape[1], 3), dtype=np.uint8)
-        _put_text(band, title, (10, 24), scale=0.62, bold=True)
-        _put_text(band, subtitle, (10, 50), scale=0.54)
+        band = np.zeros((38, resized.shape[1], 3), dtype=np.uint8)
+        _put_text(band, title, (10, 25), scale=0.62, bold=True)
         rendered.append(np.vstack([band, resized]))
 
     max_h = max(panel.shape[0] for panel in rendered)
