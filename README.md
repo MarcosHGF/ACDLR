@@ -102,7 +102,7 @@ raio = media(largura_box_px, altura_box_px) / 2
 Clone o repositorio do ACDLR e entre na pasta:
 
 ```bash
-git clone <URL_DO_REPOSITORIO_ACDLR> ACDLR
+git clone https://github.com/MarcosHGF/ACDLR.git ACDLR
 cd ACDLR
 ```
 
