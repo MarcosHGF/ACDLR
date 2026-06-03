@@ -23,6 +23,8 @@ image
 
 from __future__ import annotations
 
+import json
+import os
 import time
 from pathlib import Path
 
@@ -30,7 +32,7 @@ import cv2
 import numpy as np
 import streamlit as st
 
-from core import tiling, preprocessing, detection, measurement, risk, visualization
+from core import tiling, preprocessing, detection, measurement, risk, visualization, evaluation
 
 
 # ============================================================
@@ -40,124 +42,136 @@ from core import tiling, preprocessing, detection, measurement, risk, visualizat
 DEFAULT_SCALE_MPX = 5.00
 SUPPORTED_IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp", ".webp"}
 DATASET_DIR_CANDIDATES = [
+    Path("data/LU3M6TGT_yolo_format/valid/images"),
     Path("data/lroc_nac_roi_toriceliloa_tiles"),
     Path("data/dataset_tiles"),
     Path("dataset_tiles"),
 ]
-DEEPMOON_REFERENCE_METRICS = [
+CNN_WEIGHTS_PATH = Path("artifacts/crater_cnn_yolo_train/moon_small/weights/best.pt")
+CNN_IMGSZ = 416
+CNN_CONF = 0.001
+CNN_IOU = 0.15
+CNN_MAX_DET = 150
+CNN_DEVICE = "cpu"
+CNN_REFERENCE_METRICS = [
     {
-        "label": "Recall",
-        "value": "92%",
-        "caption": "post-processed test set",
+        "label": "ACDLR F1",
+        "value": "0.564",
+        "caption": "smoke test, 3 valid images",
     },
     {
-        "label": "Precision",
-        "value": "56%",
-        "caption": "post-processed test set",
+        "label": "CNN F1",
+        "value": "0.328",
+        "caption": "YOLOv11 baseline, 1 epoch",
     },
     {
-        "label": "Median radius error",
-        "value": "7%",
-        "caption": "fractional error",
+        "label": "Dataset",
+        "value": "YOLO",
+        "caption": "same labels and same split",
     },
     {
-        "label": "False positives",
-        "value": "11%",
-        "caption": "manual inspection estimate",
+        "label": "ACDLR AI use",
+        "value": "0",
+        "caption": "classical image processing only",
     },
 ]
-DEEPMOON_COMPARISON_ROWS = [
+CNN_COMPARISON_ROWS = [
     {
         "Criterion": "Input data",
         "ACDLR": "Lunar surface images or local tiles",
-        "DeepMoon": "Global lunar DEM crops derived from LRO/Kaguya data",
+        "CNN YOLOv11": "Same visual tiles with YOLO labels",
     },
     {
         "Criterion": "Core method",
         "ACDLR": "Classical CV: CLAHE, matched filters, edges and geometric validation",
-        "DeepMoon": "CNN based on U-Net that predicts binary crater-rim masks",
+        "CNN YOLOv11": "Ultralytics YOLOv11 object detector",
     },
     {
         "Criterion": "Training",
         "ACDLR": "No training; parameters are explicit and inspectable",
-        "DeepMoon": "Requires labelled catalogues, generated targets and GPU training",
+        "CNN YOLOv11": "Trained/fine-tuned from annotated crater boxes",
     },
     {
         "Criterion": "Crater extraction",
         "ACDLR": "Direct circle candidates validated by visual/geometric criteria",
-        "DeepMoon": "Post-CNN template matching extracts x, y and radius from predicted rims",
+        "CNN YOLOv11": "Predicted boxes are converted to center and radius",
     },
     {
-        "Criterion": "Metrics to mirror",
+        "Criterion": "Metrics",
         "ACDLR": "Precision, recall, F1, center error and radius error on annotated tiles",
-        "DeepMoon": "Precision, recall, F1 and fractional longitude/latitude/radius errors",
+        "CNN YOLOv11": "The same metrics on the same annotations",
     },
     {
         "Criterion": "Project role",
         "ACDLR": "Explainable academic demo for landing-risk visualization",
-        "DeepMoon": "Scientific crater-catalogue extraction pipeline",
+        "CNN YOLOv11": "Neural competitor for performance comparison",
     },
 ]
-DEEPMOON_PIPELINE_ROWS = [
+CNN_PIPELINE_ROWS = [
     {
         "Stage": "1. Data source",
         "ACDLR": "LROC visual tile or uploaded lunar image",
-        "DeepMoon": "Global lunar DEM crops",
+        "CNN YOLOv11": "YOLO image split from LU3M6TGT_yolo_format",
     },
     {
         "Stage": "2. Representation",
         "ACDLR": "Enhanced grayscale image with edges and circular signatures",
-        "DeepMoon": "DEM input paired with binary crater-rim target mask",
+        "CNN YOLOv11": "RGB/gray tile with normalized bounding boxes",
     },
     {
         "Stage": "3. Detection",
         "ACDLR": "Matched filter proposes circles; validators reject weak candidates",
-        "DeepMoon": "CNN predicts rim mask pixels",
+        "CNN YOLOv11": "CNN predicts crater boxes",
     },
     {
         "Stage": "4. Extraction",
         "ACDLR": "Circle center and radius are produced directly",
-        "DeepMoon": "Template matching converts mask into center and radius",
+        "CNN YOLOv11": "Box width/height are converted into a circle radius",
     },
     {
         "Stage": "5. Decision layer",
         "ACDLR": "Risk grid and landing point are computed from detected craters",
-        "DeepMoon": "Crater catalogue is aggregated and deduplicated globally",
+        "CNN YOLOv11": "Only used for benchmark comparison",
     },
 ]
-DEEPMOON_METRIC_ALIGNMENT_ROWS = [
+CNN_METRIC_ALIGNMENT_ROWS = [
     {
-        "DeepMoon metric": "Recall",
+        "Shared metric": "Recall",
         "ACDLR benchmark field": "recall",
-        "Meaning": "Annotated craters recovered by the detector",
+        "CNN benchmark field": "recall",
+        "Meaning": "Annotated craters recovered by each detector",
     },
     {
-        "DeepMoon metric": "Precision",
+        "Shared metric": "Precision",
         "ACDLR benchmark field": "precision",
+        "CNN benchmark field": "precision",
         "Meaning": "Detected craters that match annotations",
     },
     {
-        "DeepMoon metric": "F1",
+        "Shared metric": "F1",
         "ACDLR benchmark field": "f1",
+        "CNN benchmark field": "f1",
         "Meaning": "Single score balancing precision and recall",
     },
     {
-        "DeepMoon metric": "Fractional coordinate error",
+        "Shared metric": "Center error ratio",
         "ACDLR benchmark field": "mean_center_error_ratio",
+        "CNN benchmark field": "mean_center_error_ratio",
         "Meaning": "Center error divided by annotated radius",
     },
     {
-        "DeepMoon metric": "Fractional radius error",
+        "Shared metric": "Radius error ratio",
         "ACDLR benchmark field": "mean_radius_error_ratio",
+        "CNN benchmark field": "mean_radius_error_ratio",
         "Meaning": "Radius error divided by annotated radius",
     },
 ]
 VALIDITY_LIMITATION_ROWS = [
     {
-        "Area": "DeepMoon comparison",
-        "Limitation": "DeepMoon uses DEM crops; ACDLR uses visual lunar images/tiles.",
-        "Impact": "Scores are not directly interchangeable.",
-        "Mitigation": "Compare method, metrics and protocol; avoid claiming parity.",
+        "Area": "CNN comparison",
+        "Limitation": "The smoke-test CNN was trained for only 1 epoch on a small fraction.",
+        "Impact": "CNN metrics are pipeline evidence, not final neural performance.",
+        "Mitigation": "Train longer on train/ and evaluate on valid/ before final claims.",
     },
     {
         "Area": "Benchmark",
@@ -197,13 +211,13 @@ VALIDITY_LIMITATION_ROWS = [
     },
 ]
 CLASSICAL_EVOLUTION_STEPS = [
-    "Build a small annotated LROC tile benchmark using DeepMoon-like metrics.",
+    "Use the YOLO annotated dataset as the primary benchmark.",
     "Report precision, recall, F1, center error and radius error before tuning.",
     "Tune the classical detector with benchmark evidence instead of visual guesswork.",
     "Score landing risk with physical components that remain comparable across tiles.",
-    "Present ACDLR and DeepMoon side by side in the interface.",
+    "Present ACDLR and CNN YOLOv11 side by side in the interface.",
     "Document limitations and validity threats explicitly.",
-    "Keep DeepMoon as the neural reference, not as a dependency of the project.",
+    "Keep ACDLR classical; use CNN only as external competitor.",
 ]
 
 
@@ -253,6 +267,51 @@ def discover_dataset_images() -> tuple[str | None, list[str]]:
     return None, []
 
 
+@st.cache_resource(show_spinner=False)
+def load_cnn_detector(weights_path: str):
+    """Load the YOLOv11 CNN comparison model."""
+    config_dir = Path("artifacts/ultralytics_config").resolve()
+    config_dir.mkdir(parents=True, exist_ok=True)
+    os.environ.setdefault("YOLO_CONFIG_DIR", str(config_dir))
+
+    from ultralytics import YOLO
+
+    return YOLO(weights_path)
+
+
+def predict_cnn_circles(image_bgr: np.ndarray) -> tuple[np.ndarray | None, str | None]:
+    """Run the trained CNN baseline and convert YOLO boxes to crater circles."""
+    if not CNN_WEIGHTS_PATH.exists():
+        return None, f"Pesos CNN nao encontrados: `{CNN_WEIGHTS_PATH}`"
+
+    try:
+        model = load_cnn_detector(str(CNN_WEIGHTS_PATH.resolve()))
+        predictions = model.predict(
+            source=image_bgr,
+            imgsz=CNN_IMGSZ,
+            conf=CNN_CONF,
+            iou=CNN_IOU,
+            max_det=CNN_MAX_DET,
+            device=CNN_DEVICE,
+            verbose=False,
+        )
+    except Exception as exc:
+        return None, f"Nao foi possivel executar a CNN YOLOv11: {exc}"
+
+    if not predictions or predictions[0].boxes is None or len(predictions[0].boxes) == 0:
+        return np.empty((0, 3), dtype=np.float32), None
+
+    xywh = predictions[0].boxes.xywh.detach().cpu().numpy()
+    circles: list[list[float]] = []
+    for cx, cy, width, height in xywh:
+        radius = (float(width) + float(height)) / 4.0
+        if radius <= 0:
+            continue
+        circles.append([float(cx), float(cy), radius])
+
+    return np.asarray(circles, dtype=np.float32), None
+
+
 # ============================================================
 # Sidebar — parameters
 # ============================================================
@@ -298,20 +357,20 @@ with st.sidebar:
 
     st.divider()
     st.subheader("Crater Detection")
-    min_radius = st.slider("Min radius (px)", 5, 50, 10)
-    max_radius = st.slider("Max radius (px)", 20, 200, 40)
+    min_radius = st.slider("Min radius (px)", 4, 50, 4)
+    max_radius = st.slider("Max radius (px)", 20, 200, 70)
     param1 = st.slider(
         "Canny threshold",
         20,
         150,
-        60,
+        45,
         help="Canny edge upper threshold — higher = fewer edges",
     )
     param2 = st.slider(
-        "Accumulator threshold",
+        "Detector strictness",
         10,
         80,
-        34,
+        16,
         help="Higher = detector mais seletivo, com menos falsos positivos",
     )
 
@@ -323,9 +382,9 @@ with st.sidebar:
         max_value=100.0,
         value=DEFAULT_SCALE_MPX,
         step=0.1,
-        help="Local validation tiles use the official LROC 5M product: 5.00 m/px",
+        help="Adjust according to the selected dataset scale.",
     )
-    st.caption("_Local validation dataset: LROC NAC ROI_TORICELILOA 5M (5.00 m/px)_")
+    st.caption("_O novo dataset YOLO local usa imagens 416 x 416 com anotações em labels/._")
 
 
 # ============================================================
@@ -340,8 +399,163 @@ def show_image_header(image_bgr: np.ndarray, scale_m_per_px: float) -> None:
     )
 
 
+def draw_detection_overlay(
+    image_bgr: np.ndarray,
+    circles: np.ndarray,
+    title: str,
+    color: tuple[int, int, int],
+) -> np.ndarray:
+    """Draw detection circles with a header band outside the image area."""
+    vis = image_bgr.copy()
+    rows = np.asarray(circles, dtype=float) if circles.size else np.empty((0, 3), dtype=float)
+    for x, y, radius in rows[:, :3]:
+        cv2.circle(vis, (int(round(x)), int(round(y))), int(round(radius)), color, 1)
+        cv2.circle(vis, (int(round(x)), int(round(y))), 2, color, -1)
+
+    header_h = 54
+    header = np.zeros((header_h, vis.shape[1], 3), dtype=np.uint8)
+    _put_overlay_text(header, title, (8, 22), scale=0.58, bold=True)
+    _put_overlay_text(header, f"{len(rows)} detections", (8, 43), scale=0.46)
+    return np.vstack([header, vis])
+
+
+def render_selected_image_cnn_comparison(
+    image_bgr: np.ndarray,
+    acdlr_circles: np.ndarray,
+    image_path: str | None,
+) -> None:
+    st.divider()
+    st.subheader("Comparação da detecção final: ACDLR x CNN YOLOv11")
+
+    with st.spinner("Executando CNN YOLOv11 para comparar com o ACDLR..."):
+        cnn_circles, error = predict_cnn_circles(image_bgr)
+
+    if error is not None:
+        st.info(error)
+        st.code(
+            "python scripts/run_acdlr_vs_crater_cnn_comparison.py --max-images 5 --force-cnn-train",
+            language="bash",
+        )
+        return
+
+    if cnn_circles is None:
+        cnn_circles = np.empty((0, 3), dtype=np.float32)
+
+    acdlr_overlay = cv2.cvtColor(
+        draw_detection_overlay(image_bgr, acdlr_circles, "ACDLR", (80, 255, 100)),
+        cv2.COLOR_BGR2RGB,
+    )
+    cnn_overlay = cv2.cvtColor(
+        draw_detection_overlay(image_bgr, cnn_circles, "CNN YOLOv11", (70, 70, 255)),
+        cv2.COLOR_BGR2RGB,
+    )
+
+    col_a, col_b = st.columns(2)
+    with col_a:
+        st.image(acdlr_overlay, caption="ACDLR — processamento clássico", use_container_width=True)
+    with col_b:
+        st.image(cnn_overlay, caption="CNN YOLOv11 — baseline neural", use_container_width=True)
+
+    st.caption(
+        "Esta comparação usa a mesma imagem analisada no app. "
+        "ACDLR permanece sem IA; a CNN é apenas o comparador externo."
+    )
+
+    label_path = find_yolo_label_for_image(image_path)
+    if label_path is None:
+        st.caption("Sem label YOLO encontrado para esta imagem; exibindo apenas comparação visual.")
+        return
+
+    truth = load_yolo_ground_truth(label_path, image_bgr.shape)
+    acdlr_eval = evaluation.evaluate_circles(
+        acdlr_circles,
+        truth,
+        center_tolerance_ratio=1.34,
+        radius_tolerance_ratio=1.0,
+    )
+    cnn_eval = evaluation.evaluate_circles(
+        cnn_circles,
+        truth,
+        center_tolerance_ratio=1.34,
+        radius_tolerance_ratio=1.0,
+    )
+
+    st.markdown("**Métricas nesta imagem selecionada**")
+    st.dataframe(
+        [
+            metric_row("ACDLR", acdlr_eval),
+            metric_row("CNN YOLOv11", cnn_eval),
+        ],
+        use_container_width=True,
+        hide_index=True,
+    )
+
+
+def find_yolo_label_for_image(image_path: str | None) -> Path | None:
+    if not image_path:
+        return None
+    path = Path(image_path)
+    if path.parent.name != "images":
+        return None
+    label_path = path.parent.parent / "labels" / f"{path.stem}.txt"
+    return label_path if label_path.exists() else None
+
+
+def load_yolo_ground_truth(
+    label_path: Path,
+    image_shape: tuple[int, int] | tuple[int, int, int],
+) -> list[evaluation.GroundTruthCrater]:
+    h, w = image_shape[:2]
+    craters: list[evaluation.GroundTruthCrater] = []
+    with label_path.open("r", encoding="utf-8") as handle:
+        for line in handle:
+            parts = line.strip().split()
+            if len(parts) < 5:
+                continue
+            _, cx, cy, bw, bh = parts[:5]
+            radius_px = ((float(bw) * w) + (float(bh) * h)) / 4.0
+            if radius_px <= 0:
+                continue
+            craters.append(
+                evaluation.GroundTruthCrater(
+                    cx=float(cx) * w,
+                    cy=float(cy) * h,
+                    radius_px=radius_px,
+                )
+            )
+    return craters
+
+
+def metric_row(method: str, result: evaluation.EvaluationResult) -> dict[str, int | str]:
+    return {
+        "Método": method,
+        "Detecções": result.detections,
+        "GT": result.ground_truth,
+        "TP": result.true_positive,
+        "FP": result.false_positive,
+        "FN": result.false_negative,
+        "Precision": f"{result.precision:.3f}",
+        "Recall": f"{result.recall:.3f}",
+        "F1": f"{result.f1:.3f}",
+    }
+
+
+def _put_overlay_text(
+    image: np.ndarray,
+    text: str,
+    origin: tuple[int, int],
+    scale: float = 0.5,
+    color: tuple[int, int, int] = (255, 255, 255),
+    bold: bool = False,
+) -> None:
+    x, y = origin
+    thickness = 2 if bold else 1
+    cv2.putText(image, text, (x + 1, y + 1), cv2.FONT_HERSHEY_SIMPLEX, scale, (0, 0, 0), thickness + 1)
+    cv2.putText(image, text, (x, y), cv2.FONT_HERSHEY_SIMPLEX, scale, color, thickness)
+
+
 def render_dataset_gallery(dataset_files: list[str], selected_path: str) -> None:
-    st.subheader("Dataset padrão — LROC NAC ROI_TORICELILOA")
+    st.subheader("Dataset padrão local")
     st.caption(
         "Tiles locais do dataset padrão do projeto. "
         "Selecione um tile para análise ou navegue pela galeria abaixo."
@@ -372,18 +586,31 @@ def render_dataset_gallery(dataset_files: list[str], selected_path: str) -> None
 
 
 def render_method_comparison() -> None:
-    st.subheader("ACDLR x DeepMoon")
+    st.subheader("ACDLR x CNN YOLOv11")
     st.markdown(
-        "DeepMoon é a referência neural usada para comparação: uma CNN baseada "
-        "em U-Net para extrair crateras de DEMs lunares. O ACDLR mantém uma "
-        "abordagem clássica e usa métricas semelhantes para avaliação."
+        "A comparação neural principal agora usa o repositório aberto "
+        "`sydney-machine-learning/crater-identification`, com YOLOv11/CNN. "
+        "O ACDLR continua sendo processamento de imagem clássico, sem treino "
+        "neural e sem IA no método principal."
     )
 
-    metric_cols = st.columns(len(DEEPMOON_REFERENCE_METRICS))
-    for col, metric in zip(metric_cols, DEEPMOON_REFERENCE_METRICS):
+    metric_cards = _latest_comparison_metrics() or CNN_REFERENCE_METRICS
+    metric_cols = st.columns(len(metric_cards))
+    for col, metric in zip(metric_cols, metric_cards):
         with col:
             st.metric(metric["label"], metric["value"])
             st.caption(metric["caption"])
+
+    comparison_visual = Path("artifacts/acdlr_vs_crater_cnn/visual_comparison.png")
+    comparison_report = Path("artifacts/acdlr_vs_crater_cnn/comparison_report.md")
+    if comparison_visual.exists():
+        st.image(
+            str(comparison_visual),
+            caption="Comparação executada: ACDLR x CNN YOLOv11",
+            use_container_width=True,
+        )
+    if comparison_report.exists():
+        st.caption(f"Relatório gerado: `{comparison_report}`")
 
     tab_summary, tab_pipeline, tab_metrics, tab_limits = st.tabs([
         "Resumo",
@@ -393,16 +620,16 @@ def render_method_comparison() -> None:
     ])
 
     with tab_summary:
-        st.dataframe(DEEPMOON_COMPARISON_ROWS, use_container_width=True, hide_index=True)
+        st.dataframe(CNN_COMPARISON_ROWS, use_container_width=True, hide_index=True)
 
     with tab_pipeline:
-        st.dataframe(DEEPMOON_PIPELINE_ROWS, use_container_width=True, hide_index=True)
+        st.dataframe(CNN_PIPELINE_ROWS, use_container_width=True, hide_index=True)
 
     with tab_metrics:
-        st.dataframe(DEEPMOON_METRIC_ALIGNMENT_ROWS, use_container_width=True, hide_index=True)
+        st.dataframe(CNN_METRIC_ALIGNMENT_ROWS, use_container_width=True, hide_index=True)
         st.caption(
-            "O ACDLR adapta os erros fracionários do DeepMoon para coordenadas "
-            "em pixels: erro dividido pelo raio anotado."
+            "Os dois benchmarks usam o mesmo matching: erro de centro e erro "
+            "de raio normalizados pelo raio anotado."
         )
 
     with tab_limits:
@@ -412,14 +639,51 @@ def render_method_comparison() -> None:
             "clássica, explicável e didática, não um sistema real de navegação."
         )
 
-    st.markdown("**Roteiro atual inspirado no DeepMoon**")
+    st.markdown("**Roteiro atual da comparação**")
     for idx, step in enumerate(CLASSICAL_EVOLUTION_STEPS, start=1):
         st.markdown(f"{idx}. {step}")
+
+
+def _latest_comparison_metrics() -> list[dict[str, str]] | None:
+    acdlr_path = Path("artifacts/acdlr_vs_crater_cnn/acdlr/acdlr_yolo_summary.json")
+    cnn_path = Path("artifacts/acdlr_vs_crater_cnn/crater_cnn_yolo/cnn_yolo_summary.json")
+    if not acdlr_path.exists() or not cnn_path.exists():
+        return None
+    try:
+        acdlr = json.loads(acdlr_path.read_text(encoding="utf-8"))
+        cnn = json.loads(cnn_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+
+    images = str(acdlr.get("images_processed", "?"))
+    return [
+        {
+            "label": "ACDLR F1",
+            "value": f"{float(acdlr.get('f1', 0.0)):.3f}",
+            "caption": f"{images} valid images",
+        },
+        {
+            "label": "CNN F1",
+            "value": f"{float(cnn.get('f1', 0.0)):.3f}",
+            "caption": "YOLOv11 baseline",
+        },
+        {
+            "label": "ACDLR precision",
+            "value": f"{float(acdlr.get('precision', 0.0)):.3f}",
+            "caption": "same labels",
+        },
+        {
+            "label": "CNN precision",
+            "value": f"{float(cnn.get('precision', 0.0)):.3f}",
+            "caption": "same labels",
+        },
+    ]
 
 
 def render_results(
     image_bgr: np.ndarray,
     prep_full,
+    circles: np.ndarray,
     craters,
     stats: dict,
     score_matrix: np.ndarray,
@@ -429,6 +693,7 @@ def render_results(
     grid_rows: int,
     grid_cols: int,
     landing_point,
+    image_path: str | None = None,
 ) -> None:
     img_rgb = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)
     img_craters = cv2.cvtColor(
@@ -550,6 +815,12 @@ def render_results(
                     )
             st.dataframe(rows_data, use_container_width=True, hide_index=True)
 
+    render_selected_image_cnn_comparison(
+        image_bgr=image_bgr,
+        acdlr_circles=circles,
+        image_path=image_path,
+    )
+
     st.divider()
     st.subheader("💾 Export")
 
@@ -579,7 +850,7 @@ def render_results(
         )
 
 
-def run_analysis(image_bgr: np.ndarray) -> None:
+def run_analysis(image_bgr: np.ndarray, image_path: str | None = None) -> None:
     progress = st.progress(0, text="Starting pipeline…")
     t_start = time.perf_counter()
 
@@ -654,6 +925,7 @@ def run_analysis(image_bgr: np.ndarray) -> None:
     render_results(
         image_bgr=image_bgr,
         prep_full=prep_full,
+        circles=circles,
         craters=craters,
         stats=stats,
         score_matrix=score_matrix,
@@ -663,6 +935,7 @@ def run_analysis(image_bgr: np.ndarray) -> None:
         grid_rows=grid_rows,
         grid_cols=grid_cols,
         landing_point=landing_point,
+        image_path=image_path,
     )
 
 
@@ -673,13 +946,13 @@ def run_analysis(image_bgr: np.ndarray) -> None:
 st.title("🌕 ACDLR")
 st.markdown(
     "**Automated Crater Detection and Landing Risk** — "
-    "analise tiles padrão do dataset **LROC NAC ROI_TORICELILOA** "
+    "analise tiles dos datasets locais "
     "ou envie uma nova imagem lunar para detectar crateras, avaliar o risco "
     "de pouso por região e destacar a zona mais segura."
 )
 st.divider()
 
-with st.expander("Comparação com DeepMoon", expanded=True):
+with st.expander("Comparação ACDLR x CNN YOLOv11", expanded=True):
     render_method_comparison()
 
 mode = st.radio(
@@ -690,6 +963,7 @@ mode = st.radio(
 )
 
 analysis_image: np.ndarray | None = None
+analysis_image_path: str | None = None
 
 
 # ============================================================
@@ -702,10 +976,10 @@ if mode == "Dataset padrão":
     if not dataset_files:
         st.warning(
             "Nenhum tile local do dataset padrão foi encontrado no repositório. "
-            "Adicione arquivos de imagem em `data/lroc_nac_roi_toriceliloa_tiles/` "
+            "Adicione arquivos de imagem em `data/LU3M6TGT_yolo_format/valid/images/` "
             "ou use a aba de upload para analisar uma imagem manualmente."
         )
-        st.code("data/lroc_nac_roi_toriceliloa_tiles/")
+        st.code("data/LU3M6TGT_yolo_format/valid/images/")
     else:
         default_index = 0
         selected_path = st.selectbox(
@@ -726,6 +1000,7 @@ if mode == "Dataset padrão":
 
         if st.button("▶ Run Analysis on selected dataset tile", type="primary", use_container_width=True):
             analysis_image = selected_image
+            analysis_image_path = selected_path
 
 
 # ============================================================
@@ -757,6 +1032,7 @@ if mode == "Enviar imagem":
 
         if st.button("▶ Run Analysis on uploaded image", type="primary", use_container_width=True):
             analysis_image = image_bgr
+            analysis_image_path = None
 
 
 # ============================================================
@@ -764,4 +1040,4 @@ if mode == "Enviar imagem":
 # ============================================================
 
 if analysis_image is not None:
-    run_analysis(analysis_image)
+    run_analysis(analysis_image, image_path=analysis_image_path)

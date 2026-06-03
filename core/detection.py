@@ -72,6 +72,7 @@ def detect(
     edge_low = max(10, int(param1 * 0.50))
     edge_high = max(edge_low + 20, int(param1))
     edges = cv2.Canny(image_u8, edge_low, edge_high)
+    edge_float = edges.astype(np.float32) / 255.0
 
     grad_base = cv2.GaussianBlur(image, (0, 0), sigmaX=1.0, sigmaY=1.0)
     grad_x = cv2.Sobel(grad_base, cv2.CV_32F, 1, 0, ksize=3)
@@ -82,6 +83,7 @@ def detect(
 
     candidates = _generate_candidates(
         image=image,
+        grad_mag=grad_mag,
         min_radius=min_radius,
         max_radius=max_radius,
         strictness=strictness,
@@ -94,6 +96,7 @@ def detect(
             image_u8=image_u8,
             grad_mag=grad_mag,
             edges=edges,
+            edge_float=edge_float,
             candidate=cand,
             min_radius=min_radius,
             max_radius=max_radius,
@@ -116,6 +119,7 @@ def detect(
 
 def _generate_candidates(
     image: np.ndarray,
+    grad_mag: np.ndarray,
     min_radius: int,
     max_radius: int,
     strictness: float,
@@ -129,21 +133,39 @@ def _generate_candidates(
     radii = _radius_schedule(min_radius, max_radius)
     candidates: list[Candidate] = []
 
-    percentile = 99.88 + min(max(strictness, 0.0) * 0.04, 0.07)
-    percentile = float(np.clip(percentile, 99.75, 99.95))
+    image_percentile = 99.84 + strictness * 0.13
+    image_percentile = float(np.clip(image_percentile, 99.42, 99.95))
+
+    edge_image = _normalise01(cv2.GaussianBlur(grad_mag, (0, 0), sigmaX=1.0, sigmaY=1.0))
+    edge_percentile = 99.92 + strictness * 0.10
+    edge_percentile = float(np.clip(edge_percentile, 99.55, 99.98))
 
     for radius in radii:
         kernel = _crater_kernel(radius)
         response = cv2.filter2D(image, cv2.CV_32F, kernel, borderType=cv2.BORDER_REFLECT)
+        threshold = max(float(np.percentile(response, image_percentile)), 0.35)
+        _append_response_candidates(
+            candidates=candidates,
+            response=response,
+            radius=float(radius),
+            threshold=threshold,
+            width=image.shape[1],
+            height=image.shape[0],
+            response_scale=1.00,
+        )
 
-        local_max = response == cv2.dilate(response, np.ones((5, 5), np.float32))
-        threshold = max(float(np.percentile(response, percentile)), 0.35)
-        ys, xs = np.where(local_max & (response >= threshold))
-
-        for y, x in zip(ys.tolist(), xs.tolist()):
-            if _touches_border(float(x), float(y), float(radius), image.shape[1], image.shape[0], margin=4):
-                continue
-            candidates.append(Candidate(float(x), float(y), float(radius), float(response[y, x])))
+        edge_kernel = _ring_energy_kernel(radius)
+        edge_response = cv2.filter2D(edge_image, cv2.CV_32F, edge_kernel, borderType=cv2.BORDER_REFLECT)
+        edge_threshold = max(float(np.percentile(edge_response, edge_percentile)), 0.30)
+        _append_response_candidates(
+            candidates=candidates,
+            response=edge_response,
+            radius=float(radius),
+            threshold=edge_threshold,
+            width=image.shape[1],
+            height=image.shape[0],
+            response_scale=0.42,
+        )
 
     # Ordena por resposta e já elimina excesso bruto de candidatos muito próximos.
     candidates.sort(key=lambda c: c.response, reverse=True)
@@ -158,8 +180,37 @@ def _generate_candidates(
                 break
         if not duplicate:
             pruned.append(cand)
+        if len(pruned) >= _candidate_limit(image.shape, strictness):
+            break
 
     return pruned
+
+
+def _append_response_candidates(
+    candidates: list[Candidate],
+    response: np.ndarray,
+    radius: float,
+    threshold: float,
+    width: int,
+    height: int,
+    response_scale: float,
+) -> None:
+    local_max = response == cv2.dilate(response, np.ones((5, 5), np.float32))
+    ys, xs = np.where(local_max & (response >= threshold))
+
+    for y, x in zip(ys.tolist(), xs.tolist()):
+        xf = float(x)
+        yf = float(y)
+        if _touches_border(xf, yf, radius, width, height, margin=4):
+            continue
+        candidates.append(
+            Candidate(
+                x=xf,
+                y=yf,
+                radius=radius,
+                response=float(response[y, x]) * response_scale,
+            )
+        )
 
 
 def _refine_and_validate(
@@ -167,6 +218,7 @@ def _refine_and_validate(
     image_u8: np.ndarray,
     grad_mag: np.ndarray,
     edges: np.ndarray,
+    edge_float: np.ndarray,
     candidate: Candidate,
     min_radius: int,
     max_radius: int,
@@ -191,6 +243,7 @@ def _refine_and_validate(
                     image=image,
                     grad_mag=grad_mag,
                     edges=edges,
+                    edge_float=edge_float,
                     x=x,
                     y=y,
                     radius=radius,
@@ -212,6 +265,7 @@ def _refine_and_validate(
             image=image,
             grad_mag=grad_mag,
             edges=edges,
+            edge_float=edge_float,
             x=hough_refined.x,
             y=hough_refined.y,
             radius=hough_refined.radius,
@@ -230,6 +284,7 @@ def _refine_and_validate(
         image=image,
         grad_mag=grad_mag,
         edges=edges,
+        edge_float=edge_float,
         x=best.x,
         y=best.y,
         radius=best.radius,
@@ -245,7 +300,7 @@ def _refine_and_validate(
         large_penalty = 0.10 * (best.radius - 0.55 * max_radius)
 
     score = final_score - large_penalty
-    min_final_score = 2.60 + max(strictness, 0.0) * 0.35
+    min_final_score = 2.48 + strictness * 0.32
     if score < min_final_score:
         return None
 
@@ -256,6 +311,7 @@ def _score_circle(
     image: np.ndarray,
     grad_mag: np.ndarray,
     edges: np.ndarray,
+    edge_float: np.ndarray,
     x: float,
     y: float,
     radius: float,
@@ -284,6 +340,9 @@ def _score_circle(
     patch_grad = grad_mag[y1:y2, x1:x2]
     patch_edges = edges[y1:y2, x1:x2]
 
+    if _looks_like_no_data_patch(patch):
+        return None
+
     yy, xx = np.ogrid[y1:y2, x1:x2]
     dist = np.sqrt((xx - x) ** 2 + (yy - y) ** 2)
 
@@ -291,17 +350,27 @@ def _score_circle(
     rim = (dist >= 0.72 * radius) & (dist <= 1.10 * radius)
     outer = (dist >= 1.18 * radius) & (dist <= 1.60 * radius)
 
-    if inner.sum() < 30 or rim.sum() < 40 or outer.sum() < 40:
+    min_inner_pixels = max(8, int(0.20 * math.pi * radius * radius))
+    min_ring_pixels = max(14, int(0.35 * math.pi * radius * radius))
+    if inner.sum() < min_inner_pixels or rim.sum() < min_ring_pixels or outer.sum() < min_ring_pixels:
         return None
 
     inner_mean = float(patch[inner].mean())
     rim_mean = float(patch[rim].mean())
     outer_mean = float(patch[outer].mean())
 
+    inner_q35 = float(np.percentile(patch[inner], 35))
+    inner_q50 = float(np.percentile(patch[inner], 50))
+    rim_q75 = float(np.percentile(patch[rim], 75))
+
     contrast = rim_mean - inner_mean
+    rim_highlight = rim_q75 - inner_q35
     outer_contrast = outer_mean - inner_mean
     edge_support = float(np.count_nonzero(patch_edges[rim])) / float(rim.sum())
     rim_gradient = float(patch_grad[rim].mean())
+    inner_gradient = float(patch_grad[inner].mean())
+    outer_gradient = float(patch_grad[outer].mean())
+    rim_prominence = rim_gradient - 0.5 * (inner_gradient + outer_gradient)
 
     angle_count = 48
     angles = np.linspace(0.0, 2.0 * math.pi, angle_count, endpoint=False)
@@ -314,39 +383,67 @@ def _score_circle(
     brightness_floor = inner_mean + 0.55 * max(contrast, 0.0)
     bright_fraction = float(np.mean(ring_values > brightness_floor))
 
-    grad_threshold = float(np.percentile(ring_grad, 60))
+    grad_threshold = float(np.percentile(patch_grad, 72))
     grad_fraction = float(np.mean(ring_grad >= grad_threshold))
 
     sectors = 12
     sector_values = ring_values.reshape(sectors, angle_count // sectors).mean(axis=1)
-    sector_spread = float(np.std(sector_values))
-    sector_score = 1.0 / (1.0 + 8.0 * sector_spread)
+    bright_sector_fraction = float(
+        np.mean((sector_values - inner_q50) > max(0.020, 0.42 * max(contrast, rim_highlight, 0.0)))
+    )
+    sector_coverage, edge_angle_fraction, grad_angle_fraction = _angular_support(
+        grad_mag=grad_mag,
+        edge_float=edge_float,
+        x=x,
+        y=y,
+        radius=radius,
+        grad_threshold=grad_threshold,
+    )
 
-    min_contrast = 0.070 + 0.015 * max(strictness, 0.0)
-    min_outer_contrast = 0.040 + 0.010 * max(strictness, 0.0)
-    min_bright_fraction = 0.52 + 0.05 * max(strictness, 0.0)
-    min_edge_support = 0.12 + 0.02 * max(strictness, 0.0)
-    min_sector_score = 0.38
+    min_contrast = 0.070 + strictness * 0.018
+    min_outer_contrast = 0.040 + strictness * 0.012
+    min_bright_fraction = 0.52 + strictness * 0.050
+    min_edge_support = 0.12 + strictness * 0.025
+    min_sector_coverage = 0.50 + strictness * 0.060
+    min_rim_prominence = 0.006 + strictness * 0.004
 
-    if contrast < min_contrast:
+    min_contrast = float(np.clip(min_contrast, 0.040, 0.105))
+    min_outer_contrast = float(np.clip(min_outer_contrast, 0.015, 0.070))
+    min_bright_fraction = float(np.clip(min_bright_fraction, 0.38, 0.65))
+    min_edge_support = float(np.clip(min_edge_support, 0.055, 0.18))
+    min_sector_coverage = float(np.clip(min_sector_coverage, 0.32, 0.64))
+    min_rim_prominence = float(np.clip(min_rim_prominence, 0.001, 0.014))
+
+    if contrast < min_contrast and rim_highlight < min_contrast * 1.40:
         return None
     if outer_contrast < min_outer_contrast:
         return None
-    if bright_fraction < min_bright_fraction:
+    if bright_fraction < min_bright_fraction and bright_sector_fraction < 0.36:
         return None
-    if edge_support < min_edge_support and rim_gradient < 0.11:
+    if rim_prominence < min_rim_prominence and contrast < min_contrast * 1.25:
         return None
-    if sector_score < min_sector_score:
+    if (
+        edge_support < min_edge_support
+        and rim_gradient < 0.10
+        and sector_coverage < min_sector_coverage
+    ):
+        return None
+    if sector_coverage < min_sector_coverage and bright_sector_fraction < 0.42:
         return None
 
     score = (
-        contrast * 3.2
-        + outer_contrast * 1.35
-        + rim_gradient * 1.8
-        + edge_support * 1.2
-        + bright_fraction * 1.3
+        contrast * 2.6
+        + rim_highlight * 1.2
+        + outer_contrast * 1.05
+        + rim_gradient * 1.7
+        + max(rim_prominence, 0.0) * 4.0
+        + edge_support * 0.9
+        + bright_fraction * 0.95
         + grad_fraction * 0.6
-        + sector_score * 0.8
+        + sector_coverage * 1.35
+        + edge_angle_fraction * 0.45
+        + grad_angle_fraction * 0.45
+        + bright_sector_fraction * 0.75
         + radius * 0.012
     )
     return float(score)
@@ -429,7 +526,7 @@ def _deduplicate(detections: list[Detection]) -> list[Detection]:
                 break
 
             # sobreposição muito forte com raios parecidos
-            if dist < 0.35 * (det.radius + prev.radius) and radius_ratio < 0.60:
+            if dist < 0.48 * (det.radius + prev.radius) and radius_ratio < 0.72:
                 duplicate = True
                 break
 
@@ -475,6 +572,90 @@ def _crater_kernel(radius: int) -> np.ndarray:
         kernel /= norm
 
     return kernel
+
+
+def _ring_energy_kernel(radius: int) -> np.ndarray:
+    """
+    Annular kernel used over gradient magnitude.
+
+    It does not care about bright/dark polarity, so it complements the crater
+    template for partially lit or degraded rims.
+    """
+    pad = int(math.ceil(1.45 * radius))
+    yy, xx = np.mgrid[-pad : pad + 1, -pad : pad + 1]
+    dist = np.sqrt(xx.astype(np.float32) ** 2 + yy.astype(np.float32) ** 2)
+
+    kernel = np.zeros_like(dist, dtype=np.float32)
+    kernel[(dist >= 0.86 * radius) & (dist <= 1.16 * radius)] = 1.0
+    kernel[(dist >= 0.48 * radius) & (dist <= 0.68 * radius)] = -0.25
+    kernel[(dist >= 1.28 * radius) & (dist <= 1.45 * radius)] = -0.20
+
+    mask = kernel != 0.0
+    kernel[mask] -= float(kernel[mask].mean())
+
+    norm = float(np.sqrt(np.sum(kernel[mask] ** 2)))
+    if norm > 0:
+        kernel /= norm
+
+    return kernel
+
+
+def _angular_support(
+    grad_mag: np.ndarray,
+    edge_float: np.ndarray,
+    x: float,
+    y: float,
+    radius: float,
+    grad_threshold: float,
+) -> tuple[float, float, float]:
+    angle_count = 72
+    sectors = 12
+    angles = np.linspace(0.0, 2.0 * math.pi, angle_count, endpoint=False)
+    radial_factors = np.array([0.84, 0.94, 1.00, 1.08, 1.18], dtype=np.float32)
+
+    grad_samples = []
+    edge_samples = []
+    for factor in radial_factors:
+        xs = x + radius * float(factor) * np.cos(angles)
+        ys = y + radius * float(factor) * np.sin(angles)
+        grad_samples.append(_bilinear_sample(grad_mag, xs, ys))
+        edge_samples.append(_bilinear_sample(edge_float, xs, ys))
+
+    grad_stack = np.vstack(grad_samples)
+    edge_stack = np.vstack(edge_samples)
+
+    grad_by_angle = np.max(grad_stack, axis=0)
+    edge_by_angle = np.max(edge_stack, axis=0)
+    supported = (grad_by_angle >= grad_threshold) | (edge_by_angle >= 0.20)
+
+    sector_support = supported.reshape(sectors, angle_count // sectors).mean(axis=1)
+    sector_coverage = float(np.mean(sector_support >= 0.30))
+    edge_angle_fraction = float(np.mean(edge_by_angle >= 0.20))
+    grad_angle_fraction = float(np.mean(grad_by_angle >= grad_threshold))
+    return sector_coverage, edge_angle_fraction, grad_angle_fraction
+
+
+def _normalise01(image: np.ndarray) -> np.ndarray:
+    image = np.asarray(image, dtype=np.float32)
+    lo = float(np.min(image))
+    hi = float(np.max(image))
+    if hi <= lo:
+        return np.zeros_like(image, dtype=np.float32)
+    return (image - lo) / (hi - lo)
+
+
+def _looks_like_no_data_patch(patch: np.ndarray) -> bool:
+    dark_fraction = float(np.mean(patch <= 0.015))
+    flat_dark = float(np.percentile(patch, 5)) <= 0.020
+    return dark_fraction > 0.035 and flat_dark
+
+
+def _candidate_limit(shape: tuple[int, ...], strictness: float) -> int:
+    h, w = shape[:2]
+    base = float(np.clip((h * w) / 8200.0, 90, 280))
+    if strictness < 0:
+        base *= 1.0 + min(abs(strictness), 0.8) * 2.0
+    return int(np.clip(base, 90, 620))
 
 
 def _bilinear_sample(image: np.ndarray, xs: np.ndarray, ys: np.ndarray) -> np.ndarray:

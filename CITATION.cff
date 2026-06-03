@@ -1,0 +1,18 @@
+cff-version: 1.2.0
+title: "ACDLR: Automated Crater Detection and Landing Risk"
+message: "If you use this repository, please cite it as an academic computer-vision project."
+type: software
+authors:
+  - family-names: "ACDLR Team"
+    given-names: "Computer Vision Project"
+abstract: "Classical image-processing pipeline for lunar crater detection and visual landing-risk estimation, with a reproducible benchmark against a YOLOv11 CNN baseline."
+keywords:
+  - computer vision
+  - lunar crater detection
+  - classical image processing
+  - OpenCV
+  - YOLO
+  - benchmark
+license: MIT
+date-released: "2026-06-03"
+version: "0.1.0"

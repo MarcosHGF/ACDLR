@@ -21,6 +21,8 @@ ENV/
 
 # Local datasets and generated validation artifacts
 data/**
+!data/
+!data/README.md
 artifacts/**
 outputs/**
 results/**
@@ -59,6 +61,7 @@ Thumbs.db
 desktop.ini
 .idea/
 .vscode/
+Ultralytics/
 
 # Streamlit local config
 .streamlit/secrets.toml

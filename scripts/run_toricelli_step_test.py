@@ -25,7 +25,7 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--image",
-        default="data/lroc_nac_roi_toriceliloa_tiles/torricelli_5m_y05760_x03840.png",
+        default="data/lroc_nac_roi_toriceliloa_tiles/torricelli_y00960_x01920.png",
         help="LROC tile to test",
     )
     parser.add_argument("--out-dir", default="artifacts/toricelli_step_test")
