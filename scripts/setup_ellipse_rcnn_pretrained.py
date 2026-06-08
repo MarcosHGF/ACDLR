@@ -6,7 +6,9 @@ Prepare the visual-image CNN baseline used for the fair ACDLR comparison.
 The selected baseline is wdoppenberg/ellipse-rcnn with the Hugging Face crater
 weights wdoppenberg/crater-rcnn. It accepts visual camera-style lunar images
 and predicts crater ellipses, which can be converted to circles for the
-existing ACDLR metrics.
+existing ACDLR metrics. The related wdoppenberg/crater-detection repository is
+the larger lunar-navigation/TRN project; this script uses the standalone model
+package and pretrained crater weights.
 """
 
 import argparse
@@ -19,6 +21,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 ELLIPSE_REPO_URL = "https://github.com/wdoppenberg/ellipse-rcnn.git"
+CRATER_DETECTION_REPO_URL = "https://github.com/wdoppenberg/crater-detection"
 HF_MODEL_ID = "wdoppenberg/crater-rcnn"
 
 
@@ -75,7 +78,8 @@ def main() -> None:
         "model_id": HF_MODEL_ID,
         "paper": "Ellipse R-CNN: Learning to Infer Elliptical Object from Clustering and Occlusion",
         "paper_url": "https://arxiv.org/abs/2001.11584",
-        "repo_url": ELLIPSE_REPO_URL,
+        "standalone_model_repo_url": ELLIPSE_REPO_URL,
+        "source_project_repo_url": CRATER_DETECTION_REPO_URL,
         "hf_model": f"https://huggingface.co/{HF_MODEL_ID}",
         "ellipse_dir": _display_path(ellipse_dir),
         "weights_dir": _display_path(weights_dir),

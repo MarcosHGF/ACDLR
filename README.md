@@ -160,9 +160,15 @@ git clone https://github.com/wdoppenberg/ellipse-rcnn.git external/ellipse-rcnn
 
 Referencias:
 
-- Repositorio: https://github.com/wdoppenberg/ellipse-rcnn
+- Repositorio standalone do modelo: https://github.com/wdoppenberg/ellipse-rcnn
+- Projeto completo/TRN relacionado: https://github.com/wdoppenberg/crater-detection
 - Peso: https://huggingface.co/wdoppenberg/crater-rcnn
 - Paper base: https://arxiv.org/abs/2001.11584
+
+Observacao: `wdoppenberg/crater-detection` e o projeto completo de navegacao
+lunar que usa Ellipse R-CNN e pattern matching. Para inferencia standalone do
+detector, o proprio projeto aponta para `wdoppenberg/ellipse-rcnn`; por isso o
+ACDLR usa `ellipse-rcnn` + o peso treinado `wdoppenberg/crater-rcnn`.
 
 ## Como Rodar A Interface
 
@@ -273,6 +279,7 @@ artifacts/acdlr_vs_ellipse_rcnn/charts/acdlr_vs_ellipse_rcnn_metrics.png
 ## Documentacao
 
 - [Como rodar](docs/COMO_RODAR.md)
+- [Apresentacao e fala pronta](docs/APRESENTACAO.md)
 - [Baseline IA visual: Ellipse R-CNN](docs/AI_BASELINE_ELLIPSE_RCNN.md)
 - [Configuracao do ACDLR](docs/ACDLR_CONFIGURACAO.md)
 - [Artigo tecnico completo](docs/ARTIGO_CIENTIFICO_ACDLR.md)

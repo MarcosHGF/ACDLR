@@ -44,8 +44,14 @@ O ACDLR e controlavel por parametros como `min_radius`, `max_radius`,
 
 Referencias:
 
-- Repositorio: https://github.com/wdoppenberg/ellipse-rcnn
+- Repositorio standalone do modelo: https://github.com/wdoppenberg/ellipse-rcnn
+- Projeto completo/TRN relacionado: https://github.com/wdoppenberg/crater-detection
 - Peso pre-treinado: https://huggingface.co/wdoppenberg/crater-rcnn
+
+O projeto `wdoppenberg/crater-detection` contem o sistema completo de navegacao
+lunar com deteccao e casamento de padroes de crateras. Para o benchmark deste
+repositorio, usamos apenas o detector pre-treinado standalone: codigo
+`wdoppenberg/ellipse-rcnn` e peso `wdoppenberg/crater-rcnn`.
 - Paper base: https://arxiv.org/abs/2001.11584
 
 Ellipse R-CNN prediz elipses:

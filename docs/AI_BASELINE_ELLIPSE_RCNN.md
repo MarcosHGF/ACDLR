@@ -11,14 +11,35 @@ O comparador de IA justo para o dataset visual do ACDLR passa a ser
 | Saida | elipses de crateras `[a, b, cx, cy, theta]` |
 | Peso pre-treinado | `wdoppenberg/crater-rcnn` no Hugging Face |
 | Codigo aberto | `https://github.com/wdoppenberg/ellipse-rcnn` |
+| Projeto completo relacionado | `https://github.com/wdoppenberg/crater-detection` |
 | Encaixe com ACDLR | elipses viram circulos com `radius=(a+b)/2` |
 | Comparacao justa | mesmo split visual YOLO, mesmas labels, mesmas metricas |
 
 Referencias:
 
-- Repositorio: https://github.com/wdoppenberg/ellipse-rcnn
+- Repositorio standalone do modelo: https://github.com/wdoppenberg/ellipse-rcnn
+- Projeto completo/TRN: https://github.com/wdoppenberg/crater-detection
 - Peso Hugging Face: https://huggingface.co/wdoppenberg/crater-rcnn
 - Paper base do modelo: https://arxiv.org/abs/2001.11584
+
+## `crater-detection` E O Mesmo Modelo?
+
+Sim, no sentido metodologico: `wdoppenberg/crater-detection` e o projeto maior
+de navegacao lunar que usa Faster R-CNN/Ellipse R-CNN para detectar crateras em
+imagens monoculares simuladas. O proprio README desse projeto aponta para
+`wdoppenberg/ellipse-rcnn` quando o objetivo e usar o modelo standalone.
+
+Por isso o ACDLR usa:
+
+```text
+codigo:  wdoppenberg/ellipse-rcnn
+peso:    wdoppenberg/crater-rcnn
+```
+
+e nao clona `wdoppenberg/crater-detection` para inferencia. O repositório
+`crater-detection` contem o pipeline completo de dataset, treinamento,
+experimentos e pattern matching; o benchmark do ACDLR precisa apenas do detector
+pre-treinado de crateras.
 
 ## Por Que Nao AINavi Como Padrao
 
