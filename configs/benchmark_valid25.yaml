@@ -1,4 +1,4 @@
-experiment: acdlr_vs_cnn_valid25
+experiment: acdlr_vs_ellipse_rcnn_valid25
 dataset_dir: data/LU3M6TGT_yolo_format
 split: valid
 max_images: 25
@@ -11,12 +11,13 @@ acdlr:
   max_radius: 70
   canny_threshold: 45
   strictness: 16
-cnn:
-  weights: artifacts/crater_cnn_yolo_train/moon_small/weights/best.pt
-  imgsz: 416
-  conf: 0.001
-  iou: 0.15
-  max_det: 150
+ellipse_rcnn:
+  repository: external/ellipse-rcnn
+  model: artifacts/ellipse_rcnn_pretrained/crater-rcnn
+  score_threshold: 0.60
+  max_detections: 150
+  device: cpu
 outputs:
-  report: artifacts/acdlr_vs_crater_cnn/comparison_report.md
-  visual: artifacts/acdlr_vs_crater_cnn/visual_comparison.png
+  report: artifacts/acdlr_vs_ellipse_rcnn/comparison_report.md
+  visual: artifacts/acdlr_vs_ellipse_rcnn/visual_comparison.png
+  chart: artifacts/acdlr_vs_ellipse_rcnn/charts/acdlr_vs_ellipse_rcnn_metrics.png

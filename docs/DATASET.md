@@ -42,21 +42,25 @@ cy = y_center * image_height
 radius = (box_width_px + box_height_px) / 4
 ```
 
-This lets both ACDLR and the CNN baseline be evaluated using the same matching
-logic.
+This lets ACDLR be evaluated with circle-based matching. It can also be used
+for Ellipse R-CNN after converting the predicted ellipses to circular
+approximations with `radius = (a + b) / 2`.
 
 ## Known Caveats
 
 - The labels are box annotations, while craters are naturally circular/elliptic.
 - Some crater rims may be degraded or partially shadowed.
 - Illumination direction can change visual contrast.
-- Small craters are harder for both classical and CNN detectors.
+- Small craters are harder for both classical and neural detectors.
+- Ellipse R-CNN was trained outside this dataset, so the comparison is
+  zero-shot/frozen unless explicitly fine-tuned in a separate experiment.
 - The local dataset is ignored by Git because it is large.
 
 ## Recommended Use
 
-- Train CNN baselines on `train`.
-- Evaluate all methods on `valid`.
+- Evaluate ACDLR on `valid`.
+- Run Ellipse R-CNN on the same `valid` subset for the external neural
+  baseline.
 - Do not tune hyperparameters and report final metrics on the exact same small
   subset without disclosing it.
 - For a paper-grade result, report the full validation split or a clearly

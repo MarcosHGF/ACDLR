@@ -17,7 +17,7 @@ Use this checklist before publishing the repository with a paper.
 - [x] ACDLR pipeline explained
 - [x] Risk score explained
 - [x] Evaluation metrics explained
-- [x] CNN baseline separated from ACDLR
+- [x] Ellipse R-CNN AI baseline separated from ACDLR
 - [x] Limitations documented
 
 ## Reproducibility
@@ -27,7 +27,7 @@ Use this checklist before publishing the repository with a paper.
 - [x] Smoke-test result recorded
 - [x] Output artifact paths documented
 - [ ] Full validation split result
-- [ ] Final trained CNN weights or download instructions
+- [x] Ellipse R-CNN pretrained-weight download instructions
 - [ ] Exact hardware/runtime table
 
 ## Paper-Ready Results
@@ -43,8 +43,8 @@ Use this checklist before publishing the repository with a paper.
 ## Recommended Next Experiments
 
 1. Run ACDLR on the full `valid` split.
-2. Train CNN for more epochs on the full `train` split.
-3. Compare full validation metrics.
+2. Download/verify `wdoppenberg/crater-rcnn` weights.
+3. Compare full validation metrics for ACDLR and Ellipse R-CNN.
 4. Add runtime per image for both methods.
 5. Add an ablation removing individual ACDLR validators.
 6. Select visual examples for the paper.

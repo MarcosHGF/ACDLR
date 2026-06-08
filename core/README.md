@@ -17,12 +17,15 @@ computer vision only: no CNN, no learned model, no AI inference.
 
 ## Method Boundary
 
-The CNN baseline lives in `scripts/benchmark_crater_cnn_yolo.py` and
-`scripts/train_crater_cnn_yolo.py`. It is not part of the ACDLR method.
+The external AI baseline lives outside `core/`. The current article-facing
+baseline is Ellipse R-CNN, prepared by
+`scripts/setup_ellipse_rcnn_pretrained.py`, evaluated by
+`scripts/benchmark_ellipse_rcnn_yolo_dataset.py` and compared with ACDLR by
+`scripts/run_acdlr_vs_ellipse_rcnn_comparison.py`.
 
 This boundary matters for the paper claim:
 
 ```text
 ACDLR = classical image processing
-CNN YOLOv11 = external comparison baseline
+Ellipse R-CNN = external pretrained neural crater detector
 ```

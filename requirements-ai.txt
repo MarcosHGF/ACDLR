@@ -1,0 +1,3 @@
+# Optional dependencies for the fair visual CNN comparison.
+# Ellipse R-CNN requires Python 3.12+.
+ellipse-rcnn[hf]>=0.2.2

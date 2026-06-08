@@ -2,8 +2,8 @@ from __future__ import annotations
 
 """
 Run a classical ACDLR benchmark against manually annotated crater tiles.
-The reported metrics mirror the DeepMoon paper where possible: precision,
-recall, F1, and fractional center/radius errors adapted to image pixels.
+The reported metrics include precision, recall, F1, and fractional center/radius
+errors adapted to image pixels.
 
 Example
 -------

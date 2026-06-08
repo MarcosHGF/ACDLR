@@ -5,13 +5,13 @@ type: software
 authors:
   - family-names: "ACDLR Team"
     given-names: "Computer Vision Project"
-abstract: "Classical image-processing pipeline for lunar crater detection and visual landing-risk estimation, with a reproducible benchmark against a YOLOv11 CNN baseline."
+abstract: "Classical image-processing pipeline for lunar crater detection and visual landing-risk estimation, with a fair same-dataset comparison against an Ellipse R-CNN pretrained visual crater detector."
 keywords:
   - computer vision
   - lunar crater detection
   - classical image processing
   - OpenCV
-  - YOLO
+  - Ellipse R-CNN
   - benchmark
 license: MIT
 date-released: "2026-06-03"

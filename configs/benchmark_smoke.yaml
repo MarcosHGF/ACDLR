@@ -1,8 +1,8 @@
-experiment: acdlr_vs_cnn_smoke
+experiment: acdlr_vs_ellipse_rcnn_smoke
 dataset_dir: data/LU3M6TGT_yolo_format
 split: valid
 max_images: 3
-visual_count: 3
+visual_count: 2
 matching:
   center_tolerance: 1.34
   radius_tolerance: 1.0
@@ -11,16 +11,13 @@ acdlr:
   max_radius: 70
   canny_threshold: 45
   strictness: 16
-cnn:
-  weights: artifacts/crater_cnn_yolo_train/moon_small/weights/best.pt
-  train_epochs: 1
-  train_fraction: 0.02
-  imgsz: 416
-  batch: 8
+ellipse_rcnn:
+  repository: external/ellipse-rcnn
+  model: artifacts/ellipse_rcnn_pretrained/crater-rcnn
+  score_threshold: 0.60
+  max_detections: 150
   device: cpu
-  conf: 0.001
-  iou: 0.15
-  max_det: 150
 outputs:
-  report: artifacts/acdlr_vs_crater_cnn/comparison_report.md
-  visual: artifacts/acdlr_vs_crater_cnn/visual_comparison.png
+  report: artifacts/acdlr_vs_ellipse_rcnn/comparison_report.md
+  visual: artifacts/acdlr_vs_ellipse_rcnn/visual_comparison.png
+  chart: artifacts/acdlr_vs_ellipse_rcnn/charts/acdlr_vs_ellipse_rcnn_metrics.png

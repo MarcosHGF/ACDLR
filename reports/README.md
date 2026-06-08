@@ -7,7 +7,7 @@ ignored by Git.
 Current generated report:
 
 ```text
-artifacts/acdlr_vs_crater_cnn/comparison_report.md
+artifacts/acdlr_vs_ellipse_rcnn/comparison_report.md
 ```
 
 For a submission package, copy selected stable tables/figures from `artifacts/`

@@ -12,13 +12,19 @@ The repository is currently organized as the implementation and reproducibility
 artifact for a computer-vision paper-style project. The manuscript itself is not
 included yet.
 
+A complete article-style technical explanation is available at:
+
+```text
+docs/ARTIGO_CIENTIFICO_ACDLR.md
+```
+
 Recommended article sections:
 
 1. Introduction
 2. Related Work
 3. Dataset
 4. ACDLR Method
-5. CNN Baseline
+5. Ellipse R-CNN AI Baseline
 6. Evaluation Protocol
 7. Results
 8. Limitations
