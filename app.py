@@ -855,7 +855,7 @@ def run_analysis(image_bgr: np.ndarray, image_path: str | None = None) -> None:
     t_start = time.perf_counter()
 
     def _step(pct: int, msg: str) -> None:
-        progress.progress(pct, text=msg)
+        progress.progress(pct, text=msg) 
 
     _step(5, "Step 1/6 — Splitting image into tiles…")
     tiles = tiling.split(
