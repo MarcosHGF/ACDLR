@@ -29,7 +29,7 @@ python scripts\setup_ellipse_rcnn_pretrained.py --skip-download
 Run the fair ACDLR x Ellipse R-CNN comparison:
 
 ```powershell
-python scripts\run_acdlr_vs_ellipse_rcnn_comparison.py --max-images 5 --visual-count 3
+python scripts\run_acdlr_vs_ellipse_rcnn_comparison.py --max-images 25 --visual-count 8
 ```
 
 Run only ACDLR:

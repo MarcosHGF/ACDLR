@@ -89,7 +89,7 @@ classico contra uma CNN visual pre-treinada para crateras.
 Comando:
 
 ```bash
-python scripts/run_acdlr_vs_ellipse_rcnn_comparison.py --max-images 5 --visual-count 3
+python scripts/run_acdlr_vs_ellipse_rcnn_comparison.py --max-images 25 --visual-count 8
 ```
 
 Ellipse R-CNN prediz elipses `[a, b, cx, cy, theta]`. Para usar as mesmas

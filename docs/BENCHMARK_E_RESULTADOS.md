@@ -71,7 +71,7 @@ python scripts/setup_ellipse_rcnn_pretrained.py
 Comparacao:
 
 ```bash
-python scripts/run_acdlr_vs_ellipse_rcnn_comparison.py --max-images 3 --visual-count 2
+python scripts/run_acdlr_vs_ellipse_rcnn_comparison.py --max-images 25 --visual-count 8
 ```
 
 Saidas:
@@ -84,12 +84,12 @@ artifacts/acdlr_vs_ellipse_rcnn/charts/acdlr_vs_ellipse_rcnn_metrics.png
 
 ## Estado Atual
 
-O benchmark ACDLR x Ellipse R-CNN ja foi executado no smoke test local:
+O benchmark ACDLR x Ellipse R-CNN ja foi executado em 25 imagens do split de validacao:
 
-| Metodo | Imagens | Precision | Recall | F1 |
-|---|---:|---:|---:|---:|
-| ACDLR | 3 | 0.6294 | 0.5114 | 0.5643 |
-| Ellipse R-CNN | 3 | 0.3922 | 0.0568 | 0.0993 |
+| Metodo | Imagens | Det. | GT | TP | FP | FN | Precision | Recall | F1 |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| ACDLR | 25 | 2610 | 2994 | 1399 | 1211 | 1595 | 0.5360 | 0.4673 | 0.4993 |
+| Ellipse R-CNN | 25 | 316 | 2994 | 178 | 138 | 2816 | 0.5633 | 0.0595 | 0.1076 |
 
 Saidas geradas:
 
@@ -101,11 +101,11 @@ artifacts/acdlr_vs_ellipse_rcnn/charts/acdlr_vs_ellipse_rcnn_metrics.png
 
 ## Interpretacao
 
-Nesta amostra pequena, o ACDLR ficou superior em F1 porque recuperou muito mais
-crateras anotadas. O Ellipse R-CNN teve recall muito baixo no dataset local,
-mesmo mantendo bons erros de centro/raio nos poucos acertos. Isso sugere domain
-shift e diferenca de escala/anotacao: o modelo pre-treinado detecta algumas
-crateras com boa geometria, mas deixa muitas anotacoes do nosso dataset passar.
+Nesta amostra, o ACDLR ficou superior em F1 porque recuperou muito mais crateras
+anotadas. O Ellipse R-CNN teve precision ligeiramente maior, mas recall muito
+baixo no dataset local. Isso sugere domain shift e diferenca de escala/anotacao:
+o modelo pre-treinado detecta algumas crateras com boa geometria, mas deixa
+muitas anotacoes do nosso dataset passar.
 
 Qualquer outro modelo deve ser documentado como novo experimento separado, para
 nao misturar protocolos de avaliacao.

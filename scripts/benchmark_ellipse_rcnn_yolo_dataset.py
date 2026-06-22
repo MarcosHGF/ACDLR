@@ -143,15 +143,32 @@ def main() -> None:
 
 
 def _load_model(model_ref: str, device: str):
-    try:
-        from ellipse_rcnn.hf import EllipseRCNN
-    except Exception as exc:
-        raise SystemExit(
-            "Ellipse R-CNN is not installed. Run: "
-            "python scripts/setup_ellipse_rcnn_pretrained.py"
-        ) from exc
+    path = Path(model_ref)
+    if path.exists() and path.is_dir() and (path / "config.json").exists() and (path / "model.safetensors").exists():
+        try:
+            from ellipse_rcnn import EllipseRCNN
+            from safetensors.torch import load_file
+        except Exception as exc:
+            raise SystemExit(
+                "Ellipse R-CNN or safetensors is not installed. Run: "
+                "python scripts/setup_ellipse_rcnn_pretrained.py"
+            ) from exc
 
-    model = EllipseRCNN.from_pretrained(model_ref, weights=None)
+        config = json.loads((path / "config.json").read_text(encoding="utf-8"))
+        config["weights"] = None
+        model = EllipseRCNN(**config)
+        state_dict = load_file(str(path / "model.safetensors"))
+        model.load_state_dict(state_dict)
+    else:
+        try:
+            from ellipse_rcnn.hf import EllipseRCNN
+        except Exception as exc:
+            raise SystemExit(
+                "Ellipse R-CNN is not installed. Run: "
+                "python scripts/setup_ellipse_rcnn_pretrained.py"
+            ) from exc
+
+        model = EllipseRCNN.from_pretrained(model_ref, weights=None)
     model.eval()
     model.to(torch.device(device))
     return model

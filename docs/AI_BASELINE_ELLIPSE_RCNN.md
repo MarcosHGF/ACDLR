@@ -71,7 +71,7 @@ python scripts/setup_ellipse_rcnn_pretrained.py
 Rodar a comparacao justa:
 
 ```bash
-python scripts/run_acdlr_vs_ellipse_rcnn_comparison.py --max-images 5 --visual-count 3
+python scripts/run_acdlr_vs_ellipse_rcnn_comparison.py --max-images 25 --visual-count 8
 ```
 
 Saidas:

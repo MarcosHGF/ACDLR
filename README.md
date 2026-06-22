@@ -194,7 +194,7 @@ Teste pequeno:
 python scripts/benchmark_yolo_dataset.py --split valid --max-images 25
 ```
 
-Configuracao usada no smoke test atual:
+Configuracao usada no benchmark compacto atual:
 
 ```bash
 python scripts/benchmark_yolo_dataset.py \
@@ -221,13 +221,13 @@ artifacts/acdlr_yolo_benchmark/visuals/
 
 ## Rodar A Comparacao ACDLR x Ellipse R-CNN
 
-Comando principal:
+Comando principal do benchmark compacto:
 
 ```bash
-python scripts/run_acdlr_vs_ellipse_rcnn_comparison.py --max-images 5 --visual-count 3
+python scripts/run_acdlr_vs_ellipse_rcnn_comparison.py --max-images 25 --visual-count 8
 ```
 
-Teste rapido, igual ao smoke test que foi validado:
+Teste rapido para verificar instalacao:
 
 ```bash
 python scripts/run_acdlr_vs_ellipse_rcnn_comparison.py --max-images 3 --visual-count 2
@@ -253,20 +253,26 @@ artifacts/acdlr_vs_ellipse_rcnn/acdlr/acdlr_yolo_summary.json
 artifacts/acdlr_vs_ellipse_rcnn/ellipse_rcnn/ellipse_rcnn_yolo_summary.json
 ```
 
-## Estado Do Smoke Test Atual
+## Estado Do Benchmark Atual
 
 O benchmark ACDLR x Ellipse R-CNN foi validado no dataset local com:
 
 ```bash
-python scripts/run_acdlr_vs_ellipse_rcnn_comparison.py --max-images 3 --visual-count 2
+python scripts/run_acdlr_vs_ellipse_rcnn_comparison.py --max-images 25 --visual-count 8
 ```
 
-Resultado do smoke test de 3 imagens:
+Resultado do experimento de 25 imagens:
 
-| Metodo | Precision | Recall | F1 |
-|---|---:|---:|---:|
-| ACDLR | 0.629 | 0.511 | 0.564 |
-| Ellipse R-CNN | 0.392 | 0.057 | 0.099 |
+| Metodo | Det. | GT | TP | FP | FN | Precision | Recall | F1 |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| ACDLR | 2610 | 2994 | 1399 | 1211 | 1595 | 0.536 | 0.467 | 0.499 |
+| Ellipse R-CNN | 316 | 2994 | 178 | 138 | 2816 | 0.563 | 0.059 | 0.108 |
+
+Interpretacao curta: o Ellipse R-CNN teve precision ligeiramente maior, mas
+recall muito menor neste dataset local. Por isso o ACDLR ficou melhor em F1
+neste protocolo zero-shot/pre-treinado. Isso nao significa que processamento
+classico seja superior a CNNs em geral; significa que, neste conjunto visual e
+sem fine-tuning local da CNN, o ACDLR recuperou mais crateras anotadas.
 
 Artefatos gerados:
 

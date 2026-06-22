@@ -69,13 +69,13 @@ max_detections = 150
 device = cpu
 ```
 
-## Smoke-Test Experiment
+## Compact Paper Experiment
 
 ```powershell
-python scripts\run_acdlr_vs_ellipse_rcnn_comparison.py --max-images 3 --visual-count 2
+python scripts\run_acdlr_vs_ellipse_rcnn_comparison.py --max-images 25 --visual-count 8
 ```
 
-## Recommended Paper Experiment
+## Full Validation Experiment
 
 ```powershell
 python scripts\run_acdlr_vs_ellipse_rcnn_comparison.py ^

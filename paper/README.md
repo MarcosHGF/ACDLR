@@ -1,31 +1,28 @@
 # Paper Materials
 
-This folder is reserved for article-facing materials:
+This folder contains the article-facing materials:
 
-- manuscript draft;
-- figures selected from `artifacts/`;
+- final LaTeX manuscript;
+- figures selected for publication;
 - tables exported from benchmark summaries;
 - supplementary material;
 - final protocol description.
 
 The repository is currently organized as the implementation and reproducibility
-artifact for a computer-vision paper-style project. The manuscript itself is not
-included yet.
-
-A complete article-style technical explanation is available at:
+artifact for a computer-vision paper-style project. The LaTeX manuscript is:
 
 ```text
-docs/ARTIGO_CIENTIFICO_ACDLR.md
+paper/acdlr_artigo_cientifico.tex
 ```
 
-Recommended article sections:
+Compile it from this folder with:
 
-1. Introduction
-2. Related Work
-3. Dataset
-4. ACDLR Method
-5. Ellipse R-CNN AI Baseline
-6. Evaluation Protocol
-7. Results
-8. Limitations
-9. Reproducibility
+```bash
+pdflatex -interaction=nonstopmode -halt-on-error acdlr_artigo_cientifico.tex
+```
+
+All figures required by the manuscript are stored in:
+
+```text
+paper/figures/
+```

@@ -113,7 +113,7 @@ python scripts/setup_ellipse_rcnn_pretrained.py
 Rodar comparacao:
 
 ```bash
-python scripts/run_acdlr_vs_ellipse_rcnn_comparison.py --max-images 5 --visual-count 3
+python scripts/run_acdlr_vs_ellipse_rcnn_comparison.py --max-images 25 --visual-count 8
 ```
 
 Saidas:
@@ -126,17 +126,17 @@ artifacts/acdlr_vs_ellipse_rcnn/charts/acdlr_vs_ellipse_rcnn_metrics.png
 
 ## Estado Atual
 
-O benchmark ACDLR x Ellipse R-CNN foi validado no dataset local em smoke test:
+O benchmark ACDLR x Ellipse R-CNN foi validado no dataset local em 25 imagens:
 
-| Metodo | Imagens | Precision | Recall | F1 |
-|---|---:|---:|---:|---:|
-| ACDLR | 3 | 0.6294 | 0.5114 | 0.5643 |
-| Ellipse R-CNN | 3 | 0.3922 | 0.0568 | 0.0993 |
+| Metodo | Imagens | Det. | GT | TP | FP | FN | Precision | Recall | F1 |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| ACDLR | 25 | 2610 | 2994 | 1399 | 1211 | 1595 | 0.5360 | 0.4673 | 0.4993 |
+| Ellipse R-CNN | 25 | 316 | 2994 | 178 | 138 | 2816 | 0.5633 | 0.0595 | 0.1076 |
 
-Neste smoke test, o ACDLR aparece superior em F1 porque apresenta recall muito
-maior. O Ellipse R-CNN acerta poucas crateras, mas nos acertos tem erros medios
-de centro e raio menores, indicando que o problema principal neste dataset e
-cobertura/recall, nao necessariamente localizacao dos poucos positivos.
+Neste experimento, o ACDLR aparece superior em F1 porque apresenta recall muito
+maior. O Ellipse R-CNN tem precision ligeiramente maior, mas acerta poucas
+crateras no dataset local, indicando que o problema principal neste protocolo e
+cobertura/recall.
 
 
 ## Limitacoes
@@ -144,5 +144,5 @@ cobertura/recall, nao necessariamente localizacao dos poucos positivos.
 - Ellipse R-CNN pode ter domain shift, pois nao foi treinado exatamente neste
   dataset.
 - YOLO boxes sao aproximadas como circulos.
-- O smoke test pequeno nao substitui o `valid` completo.
+- O teste de 25 imagens nao substitui o `valid` completo.
 - Para publicacao, congelar parametros antes da avaliacao final.
