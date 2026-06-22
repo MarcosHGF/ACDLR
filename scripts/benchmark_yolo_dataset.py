@@ -62,6 +62,7 @@ def main() -> None:
     visuals_dir = out_dir / "visuals"
     out_dir.mkdir(parents=True, exist_ok=True)
     visuals_dir.mkdir(parents=True, exist_ok=True)
+    _clear_visuals(visuals_dir)
 
     pairs = _find_pairs(dataset_dir, args.split)
     if not pairs:
@@ -232,6 +233,12 @@ def _write_csv(path: Path, rows: list[dict[str, int | float | str]]) -> None:
 
 def _write_json(path: Path, data: dict) -> None:
     path.write_text(json.dumps(data, indent=2, sort_keys=True), encoding="utf-8")
+
+
+def _clear_visuals(visuals_dir: Path) -> None:
+    for path in visuals_dir.glob("*_matches.png"):
+        if path.is_file():
+            path.unlink()
 
 
 def _write_report(path: Path, summary: dict, visual_paths: list[Path]) -> None:

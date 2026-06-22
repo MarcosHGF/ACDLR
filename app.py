@@ -40,6 +40,7 @@ from core import tiling, preprocessing, detection, measurement, risk, visualizat
 # ============================================================
 
 DEFAULT_SCALE_MPX = 5.00
+STUDY_TARGET_SIZE_PX = 416
 SUPPORTED_IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp", ".webp"}
 DATASET_DIR_CANDIDATES = [
     Path("data/LU3M6TGT_yolo_format/valid/images"),
@@ -47,27 +48,101 @@ DATASET_DIR_CANDIDATES = [
     Path("data/dataset_tiles"),
     Path("dataset_tiles"),
 ]
-CNN_WEIGHTS_PATH = Path("artifacts/crater_cnn_yolo_train/moon_small/weights/best.pt")
-CNN_IMGSZ = 416
-CNN_CONF = 0.001
-CNN_IOU = 0.15
-CNN_MAX_DET = 150
-CNN_DEVICE = "cpu"
-CNN_REFERENCE_METRICS = [
+STUDY_DATASET_DIR_CANDIDATES = [
+    Path("data/potholes"),
+    Path("data/pothole"),
+    Path("data/buracos_rua"),
+    Path("data/buracos"),
+    Path("data/road_potholes"),
+    Path("data/study_datasets"),
+    Path("study_datasets"),
+]
+STUDY_DATASET_IDEAS = [
+    {
+        "Dataset": "Buracos em rua / potholes",
+        "Why": "Tem bordas circulares/irregulares, sombra interna e textura parecida com depressao.",
+        "Expected": "Bom para estudar falsos positivos, sombras e bordas quebradas.",
+    },
+    {
+        "Dataset": "Crateras terrestres ou impactos em solo",
+        "Why": "Mantem a geometria circular do problema lunar, mas muda textura e iluminacao.",
+        "Expected": "Provavelmente o melhor teste fora da Lua.",
+    },
+    {
+        "Dataset": "Microscopia de celulas ou bolhas",
+        "Why": "Objetos aproximadamente circulares com bordas claras.",
+        "Expected": "Bom para estudar limite de escala e excesso de deteccoes.",
+    },
+    {
+        "Dataset": "Copas de arvores em imagem aerea",
+        "Why": "Regioes circulares repetidas em cenas naturais.",
+        "Expected": "Pode funcionar em copas isoladas, mas textura interna pode confundir.",
+    },
+    {
+        "Dataset": "Pivos centrais / circulos agricolas em satelite",
+        "Why": "Formas circulares grandes e bem definidas.",
+        "Expected": "Bom para testar raios maiores e deduplicacao.",
+    },
+    {
+        "Dataset": "Manchas solares ou estruturas planetarias circulares",
+        "Why": "Tambem dependem de contraste e borda em imagens astronomicas.",
+        "Expected": "Interessante quando ha bordas/contraste fortes.",
+    },
+]
+STUDY_DETECTION_PRESETS = {
+    "Crateras / depressões": {
+        "min_radius": 4,
+        "max_radius": 70,
+        "canny": 45,
+        "strictness": 16,
+        "clahe": 2.5,
+        "blur": 5,
+    },
+    "Buracos em rua": {
+        "min_radius": 10,
+        "max_radius": 95,
+        "canny": 40,
+        "strictness": 28,
+        "clahe": 2.8,
+        "blur": 5,
+    },
+    "Objetos circulares preenchidos": {
+        "min_radius": 10,
+        "max_radius": 55,
+        "canny": 35,
+        "strictness": 34,
+        "clahe": 2.0,
+        "blur": 5,
+    },
+    "Exploratório sensível": {
+        "min_radius": 4,
+        "max_radius": 80,
+        "canny": 30,
+        "strictness": 10,
+        "clahe": 3.2,
+        "blur": 3,
+    },
+}
+ELLIPSE_MODEL_DIR = Path("artifacts/ellipse_rcnn_pretrained/crater-rcnn")
+ELLIPSE_MODEL_FILE = ELLIPSE_MODEL_DIR / "model.safetensors"
+ELLIPSE_SCORE_THRESHOLD = 0.60
+ELLIPSE_MAX_DET = 150
+ELLIPSE_DEVICE = "cpu"
+AI_REFERENCE_METRICS = [
     {
         "label": "ACDLR F1",
         "value": "0.564",
-        "caption": "smoke test, 3 valid images",
+        "caption": "local YOLO valid smoke",
     },
     {
-        "label": "CNN F1",
-        "value": "0.328",
-        "caption": "YOLOv11 baseline, 1 epoch",
+        "label": "Ellipse R-CNN F1",
+        "value": "pending",
+        "caption": "run fair visual benchmark",
     },
     {
-        "label": "Dataset",
-        "value": "YOLO",
-        "caption": "same labels and same split",
+        "label": "AI baseline",
+        "value": "Ellipse R-CNN",
+        "caption": "visual pretrained crater model",
     },
     {
         "label": "ACDLR AI use",
@@ -75,103 +150,103 @@ CNN_REFERENCE_METRICS = [
         "caption": "classical image processing only",
     },
 ]
-CNN_COMPARISON_ROWS = [
+AI_COMPARISON_ROWS = [
     {
         "Criterion": "Input data",
         "ACDLR": "Lunar surface images or local tiles",
-        "CNN YOLOv11": "Same visual tiles with YOLO labels",
+        "Ellipse R-CNN": "Same visual tiles with YOLO labels",
     },
     {
         "Criterion": "Core method",
         "ACDLR": "Classical CV: CLAHE, matched filters, edges and geometric validation",
-        "CNN YOLOv11": "Ultralytics YOLOv11 object detector",
+        "Ellipse R-CNN": "Faster/Ellipse R-CNN detector predicting crater ellipses",
     },
     {
         "Criterion": "Training",
         "ACDLR": "No training; parameters are explicit and inspectable",
-        "CNN YOLOv11": "Trained/fine-tuned from annotated crater boxes",
+        "Ellipse R-CNN": "Pretrained crater weights from Hugging Face",
     },
     {
         "Criterion": "Crater extraction",
         "ACDLR": "Direct circle candidates validated by visual/geometric criteria",
-        "CNN YOLOv11": "Predicted boxes are converted to center and radius",
+        "Ellipse R-CNN": "Predicted ellipses are converted to circles",
     },
     {
         "Criterion": "Metrics",
         "ACDLR": "Precision, recall, F1, center error and radius error on annotated tiles",
-        "CNN YOLOv11": "The same metrics on the same annotations",
+        "Ellipse R-CNN": "The same metrics on the same local annotations",
     },
     {
         "Criterion": "Project role",
         "ACDLR": "Explainable academic demo for landing-risk visualization",
-        "CNN YOLOv11": "Neural competitor for performance comparison",
+        "Ellipse R-CNN": "Neural competitor for fair same-dataset comparison",
     },
 ]
-CNN_PIPELINE_ROWS = [
+AI_PIPELINE_ROWS = [
     {
         "Stage": "1. Data source",
         "ACDLR": "LROC visual tile or uploaded lunar image",
-        "CNN YOLOv11": "YOLO image split from LU3M6TGT_yolo_format",
+        "Ellipse R-CNN": "YOLO image split from LU3M6TGT_yolo_format",
     },
     {
         "Stage": "2. Representation",
         "ACDLR": "Enhanced grayscale image with edges and circular signatures",
-        "CNN YOLOv11": "RGB/gray tile with normalized bounding boxes",
+        "Ellipse R-CNN": "Grayscale visual tile",
     },
     {
         "Stage": "3. Detection",
         "ACDLR": "Matched filter proposes circles; validators reject weak candidates",
-        "CNN YOLOv11": "CNN predicts crater boxes",
+        "Ellipse R-CNN": "CNN predicts crater ellipses",
     },
     {
         "Stage": "4. Extraction",
         "ACDLR": "Circle center and radius are produced directly",
-        "CNN YOLOv11": "Box width/height are converted into a circle radius",
+        "Ellipse R-CNN": "Ellipse center and semi-axes are converted to circle",
     },
     {
         "Stage": "5. Decision layer",
         "ACDLR": "Risk grid and landing point are computed from detected craters",
-        "CNN YOLOv11": "Only used for benchmark comparison",
+        "Ellipse R-CNN": "Only used for benchmark comparison",
     },
 ]
-CNN_METRIC_ALIGNMENT_ROWS = [
+AI_METRIC_ALIGNMENT_ROWS = [
     {
         "Shared metric": "Recall",
         "ACDLR benchmark field": "recall",
-        "CNN benchmark field": "recall",
+        "Ellipse benchmark field": "recall",
         "Meaning": "Annotated craters recovered by each detector",
     },
     {
         "Shared metric": "Precision",
         "ACDLR benchmark field": "precision",
-        "CNN benchmark field": "precision",
+        "Ellipse benchmark field": "precision",
         "Meaning": "Detected craters that match annotations",
     },
     {
         "Shared metric": "F1",
         "ACDLR benchmark field": "f1",
-        "CNN benchmark field": "f1",
+        "Ellipse benchmark field": "f1",
         "Meaning": "Single score balancing precision and recall",
     },
     {
         "Shared metric": "Center error ratio",
         "ACDLR benchmark field": "mean_center_error_ratio",
-        "CNN benchmark field": "mean_center_error_ratio",
+        "Ellipse benchmark field": "mean_center_error_ratio",
         "Meaning": "Center error divided by annotated radius",
     },
     {
         "Shared metric": "Radius error ratio",
         "ACDLR benchmark field": "mean_radius_error_ratio",
-        "CNN benchmark field": "mean_radius_error_ratio",
+        "Ellipse benchmark field": "mean_radius_error_ratio",
         "Meaning": "Radius error divided by annotated radius",
     },
 ]
 VALIDITY_LIMITATION_ROWS = [
     {
-        "Area": "CNN comparison",
-        "Limitation": "The smoke-test CNN was trained for only 1 epoch on a small fraction.",
-        "Impact": "CNN metrics are pipeline evidence, not final neural performance.",
-        "Mitigation": "Train longer on train/ and evaluate on valid/ before final claims.",
+        "Area": "Ellipse R-CNN domain",
+        "Limitation": "The pretrained model was trained on synthetic/mission-like visual crater imagery, not this exact dataset.",
+        "Impact": "It is a fair visual CNN baseline, but still has domain shift.",
+        "Mitigation": "Report it as pretrained zero-shot/frozen inference on the local dataset.",
     },
     {
         "Area": "Benchmark",
@@ -215,9 +290,9 @@ CLASSICAL_EVOLUTION_STEPS = [
     "Report precision, recall, F1, center error and radius error before tuning.",
     "Tune the classical detector with benchmark evidence instead of visual guesswork.",
     "Score landing risk with physical components that remain comparable across tiles.",
-    "Present ACDLR and CNN YOLOv11 side by side in the interface.",
+    "Present ACDLR and Ellipse R-CNN side by side in the interface.",
     "Document limitations and validity threats explicitly.",
-    "Keep ACDLR classical; use CNN only as external competitor.",
+    "Keep ACDLR classical; use Ellipse R-CNN only as external AI competitor.",
 ]
 
 
@@ -267,49 +342,107 @@ def discover_dataset_images() -> tuple[str | None, list[str]]:
     return None, []
 
 
+@st.cache_data(show_spinner=False, ttl=5)
+def discover_images_in_directory(directory_text: str) -> list[str]:
+    """Discover image files in a user-selected study directory."""
+    directory = Path(directory_text).expanduser()
+    if not directory.exists() or not directory.is_dir():
+        return []
+    return sorted(
+        str(path)
+        for path in directory.rglob("*")
+        if path.is_file() and path.suffix.lower() in SUPPORTED_IMAGE_EXTS
+    )
+
+
+@st.cache_data(show_spinner=False, ttl=5)
+def discover_data_study_datasets() -> list[dict[str, int | str]]:
+    """Discover datasets placed under data/ for the cross-domain study tab."""
+    data_dir = Path("data")
+    if not data_dir.exists() or not data_dir.is_dir():
+        return []
+
+    datasets: list[dict[str, int | str]] = []
+    for directory in sorted(path for path in data_dir.iterdir() if path.is_dir()):
+        image_count = sum(
+            1
+            for path in directory.rglob("*")
+            if path.is_file() and path.suffix.lower() in SUPPORTED_IMAGE_EXTS
+        )
+        if image_count > 0:
+            datasets.append(
+                {
+                    "name": directory.name,
+                    "path": str(directory),
+                    "images": image_count,
+                }
+            )
+    return datasets
+
+
 @st.cache_resource(show_spinner=False)
-def load_cnn_detector(weights_path: str):
-    """Load the YOLOv11 CNN comparison model."""
-    config_dir = Path("artifacts/ultralytics_config").resolve()
-    config_dir.mkdir(parents=True, exist_ok=True)
-    os.environ.setdefault("YOLO_CONFIG_DIR", str(config_dir))
+def load_ellipse_detector(model_dir: str):
+    """Load the pretrained Ellipse R-CNN crater model."""
+    os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
+    os.environ.setdefault("HF_HUB_DISABLE_XET", "1")
+    model_path = Path(model_dir)
+    if (model_path / "config.json").exists() and (model_path / "model.safetensors").exists():
+        from ellipse_rcnn import EllipseRCNN
+        from safetensors.torch import load_file
 
-    from ultralytics import YOLO
+        config = json.loads((model_path / "config.json").read_text(encoding="utf-8"))
+        config["weights"] = None
+        model = EllipseRCNN(**config)
+        state_dict = load_file(str(model_path / "model.safetensors"))
+        model.load_state_dict(state_dict)
+    else:
+        from ellipse_rcnn.hf import EllipseRCNN
 
-    return YOLO(weights_path)
+        model = EllipseRCNN.from_pretrained(model_dir, weights=None)
+    model.eval()
+    model.to(ELLIPSE_DEVICE)
+    return model
 
 
-def predict_cnn_circles(image_bgr: np.ndarray) -> tuple[np.ndarray | None, str | None]:
-    """Run the trained CNN baseline and convert YOLO boxes to crater circles."""
-    if not CNN_WEIGHTS_PATH.exists():
-        return None, f"Pesos CNN nao encontrados: `{CNN_WEIGHTS_PATH}`"
+def predict_ellipse_circles(image_bgr: np.ndarray) -> tuple[np.ndarray | None, np.ndarray | None, str | None]:
+    """Run Ellipse R-CNN and convert predicted ellipses to crater circles."""
+    if not ELLIPSE_MODEL_FILE.exists():
+        return (
+            None,
+            None,
+            f"Peso Ellipse R-CNN nao encontrado: `{ELLIPSE_MODEL_FILE}`",
+        )
 
     try:
-        model = load_cnn_detector(str(CNN_WEIGHTS_PATH.resolve()))
-        predictions = model.predict(
-            source=image_bgr,
-            imgsz=CNN_IMGSZ,
-            conf=CNN_CONF,
-            iou=CNN_IOU,
-            max_det=CNN_MAX_DET,
-            device=CNN_DEVICE,
-            verbose=False,
-        )
+        import torch
+        from PIL import Image
+        from torchvision.transforms.functional import to_tensor
+
+        model = load_ellipse_detector(str(ELLIPSE_MODEL_DIR.resolve()))
+        gray = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2GRAY)
+        pil_image = Image.fromarray(gray)
+        tensor = to_tensor(pil_image).to(ELLIPSE_DEVICE)
+        with torch.no_grad():
+            pred = model([tensor])[0]
     except Exception as exc:
-        return None, f"Nao foi possivel executar a CNN YOLOv11: {exc}"
+        return None, None, f"Nao foi possivel executar Ellipse R-CNN: {exc}"
 
-    if not predictions or predictions[0].boxes is None or len(predictions[0].boxes) == 0:
-        return np.empty((0, 3), dtype=np.float32), None
+    scores = pred["scores"].detach().cpu()
+    ellipses = pred["ellipse_params"].detach().cpu()
+    keep = scores >= ELLIPSE_SCORE_THRESHOLD
+    scores = scores[keep]
+    ellipses = ellipses[keep]
+    if scores.numel() > 0:
+        order = torch.argsort(scores, descending=True)[:ELLIPSE_MAX_DET]
+        ellipses = ellipses[order]
 
-    xywh = predictions[0].boxes.xywh.detach().cpu().numpy()
-    circles: list[list[float]] = []
-    for cx, cy, width, height in xywh:
-        radius = (float(width) + float(height)) / 4.0
-        if radius <= 0:
-            continue
-        circles.append([float(cx), float(cy), radius])
+    if ellipses.numel() == 0:
+        return np.empty((0, 3), dtype=np.float32), np.empty((0, 5), dtype=np.float32), None
 
-    return np.asarray(circles, dtype=np.float32), None
+    arr = ellipses.numpy().astype(np.float32)
+    radius = (arr[:, 0] + arr[:, 1]) / 2.0
+    circles = np.column_stack([arr[:, 2], arr[:, 3], radius]).astype(np.float32)
+    return circles, arr, None
 
 
 # ============================================================
@@ -384,7 +517,10 @@ with st.sidebar:
         step=0.1,
         help="Adjust according to the selected dataset scale.",
     )
-    st.caption("_O novo dataset YOLO local usa imagens 416 x 416 com anotações em labels/._")
+    st.caption(
+        "_O novo dataset YOLO local usa imagens 416 x 416 com anotações em labels/. "
+        "A escala em metros é usada apenas no fluxo lunar/risco, não na aba de estudo._"
+    )
 
 
 # ============================================================
@@ -397,6 +533,63 @@ def show_image_header(image_bgr: np.ndarray, scale_m_per_px: float) -> None:
         f"Image loaded — {w} × {h} px  "
         f"({w * scale_m_per_px / 1000:.2f} × {h * scale_m_per_px / 1000:.2f} km at {scale_m_per_px:.2f} m/px)"
     )
+
+
+def show_pixel_image_header(image_bgr: np.ndarray, label: str = "Image") -> None:
+    """Show image dimensions without inventing physical scale for study datasets."""
+    h, w = image_bgr.shape[:2]
+    st.success(f"{label} loaded - {w} x {h} px")
+
+
+def normalize_study_image(
+    image_bgr: np.ndarray,
+    target_size: int,
+    mode: str,
+) -> tuple[np.ndarray, str]:
+    """Prepare non-lunar study images for the existing ACDLR detector."""
+    target_size = max(64, int(target_size))
+    h, w = image_bgr.shape[:2]
+
+    if mode == "Manter original":
+        return image_bgr.copy(), f"mantida em {w} x {h}px"
+
+    if mode == "Recortar centro + redimensionar":
+        side = min(h, w)
+        y1 = max(0, (h - side) // 2)
+        x1 = max(0, (w - side) // 2)
+        cropped = image_bgr[y1 : y1 + side, x1 : x1 + side]
+        resized = cv2.resize(
+            cropped,
+            (target_size, target_size),
+            interpolation=_resize_interpolation(side, target_size),
+        )
+        return resized, f"crop central {side} x {side}px -> {target_size} x {target_size}px"
+
+    if mode == "Adaptar com bordas":
+        scale = min(target_size / max(w, 1), target_size / max(h, 1))
+        new_w = max(1, int(round(w * scale)))
+        new_h = max(1, int(round(h * scale)))
+        resized = cv2.resize(
+            image_bgr,
+            (new_w, new_h),
+            interpolation=_resize_interpolation(max(h, w), target_size),
+        )
+        canvas = np.zeros((target_size, target_size, 3), dtype=image_bgr.dtype)
+        y1 = (target_size - new_h) // 2
+        x1 = (target_size - new_w) // 2
+        canvas[y1 : y1 + new_h, x1 : x1 + new_w] = resized
+        return canvas, f"imagem inteira preservada {w} x {h}px -> {new_w} x {new_h}px com bordas"
+
+    resized = cv2.resize(
+        image_bgr,
+        (target_size, target_size),
+        interpolation=_resize_interpolation(max(h, w), target_size),
+    )
+    return resized, f"redimensionada diretamente {w} x {h}px -> {target_size} x {target_size}px"
+
+
+def _resize_interpolation(source_size: int, target_size: int) -> int:
+    return cv2.INTER_AREA if source_size > target_size else cv2.INTER_CUBIC
 
 
 def draw_detection_overlay(
@@ -419,51 +612,85 @@ def draw_detection_overlay(
     return np.vstack([header, vis])
 
 
-def render_selected_image_cnn_comparison(
+def draw_ellipse_overlay(
+    image_bgr: np.ndarray,
+    ellipses: np.ndarray,
+    title: str,
+    color: tuple[int, int, int],
+) -> np.ndarray:
+    """Draw Ellipse R-CNN detections with a header band outside the image area."""
+    vis = image_bgr.copy()
+    rows = np.asarray(ellipses, dtype=float) if ellipses.size else np.empty((0, 5), dtype=float)
+    for a, b, cx, cy, theta in rows[:, :5]:
+        center = (int(round(cx)), int(round(cy)))
+        axes = (max(1, int(round(a))), max(1, int(round(b))))
+        cv2.ellipse(vis, center, axes, float(np.degrees(theta)), 0, 360, color, 1)
+        cv2.circle(vis, center, 2, color, -1)
+
+    header_h = 54
+    header = np.zeros((header_h, vis.shape[1], 3), dtype=np.uint8)
+    _put_overlay_text(header, title, (8, 22), scale=0.56, bold=True)
+    _put_overlay_text(header, f"{len(rows)} ellipses", (8, 43), scale=0.46)
+    return np.vstack([header, vis])
+
+
+def show_fit_image(
+    image: np.ndarray,
+    caption: str,
+    *,
+    max_width: int = 720,
+    clamp: bool = False,
+) -> None:
+    """Show images without enlarging small tiles until they become hard to inspect."""
+    width = min(max_width, int(image.shape[1]))
+    st.image(image, caption=caption, width=width, clamp=clamp, output_format="PNG")
+
+
+def render_selected_image_ellipse_comparison(
     image_bgr: np.ndarray,
     acdlr_circles: np.ndarray,
     image_path: str | None,
 ) -> None:
     st.divider()
-    st.subheader("Comparação da detecção final: ACDLR x CNN YOLOv11")
+    st.subheader("Comparacao final: ACDLR x Ellipse R-CNN")
 
-    with st.spinner("Executando CNN YOLOv11 para comparar com o ACDLR..."):
-        cnn_circles, error = predict_cnn_circles(image_bgr)
+    with st.spinner("Executando Ellipse R-CNN na mesma imagem..."):
+        ellipse_circles, ellipses, error = predict_ellipse_circles(image_bgr)
 
     if error is not None:
-        st.info(error)
+        st.warning(error)
+        st.caption("Baixe o peso pre-treinado e rode novamente para ver a comparacao lado a lado.")
         st.code(
-            "python scripts/run_acdlr_vs_crater_cnn_comparison.py --max-images 5 --force-cnn-train",
+            "python scripts/setup_ellipse_rcnn_pretrained.py\n"
+            "# se o download falhar, coloque model.safetensors em:\n"
+            "artifacts/ellipse_rcnn_pretrained/crater-rcnn/model.safetensors",
             language="bash",
         )
         return
 
-    if cnn_circles is None:
-        cnn_circles = np.empty((0, 3), dtype=np.float32)
+    if ellipse_circles is None:
+        ellipse_circles = np.empty((0, 3), dtype=np.float32)
+    if ellipses is None:
+        ellipses = np.empty((0, 5), dtype=np.float32)
 
     acdlr_overlay = cv2.cvtColor(
         draw_detection_overlay(image_bgr, acdlr_circles, "ACDLR", (80, 255, 100)),
         cv2.COLOR_BGR2RGB,
     )
-    cnn_overlay = cv2.cvtColor(
-        draw_detection_overlay(image_bgr, cnn_circles, "CNN YOLOv11", (70, 70, 255)),
+    ellipse_overlay = cv2.cvtColor(
+        draw_ellipse_overlay(image_bgr, ellipses, "Ellipse R-CNN", (70, 70, 255)),
         cv2.COLOR_BGR2RGB,
     )
 
     col_a, col_b = st.columns(2)
     with col_a:
-        st.image(acdlr_overlay, caption="ACDLR — processamento clássico", use_container_width=True)
+        show_fit_image(acdlr_overlay, "ACDLR - processamento classico", max_width=520)
     with col_b:
-        st.image(cnn_overlay, caption="CNN YOLOv11 — baseline neural", use_container_width=True)
-
-    st.caption(
-        "Esta comparação usa a mesma imagem analisada no app. "
-        "ACDLR permanece sem IA; a CNN é apenas o comparador externo."
-    )
+        show_fit_image(ellipse_overlay, "Ellipse R-CNN - CNN visual pre-treinada", max_width=520)
 
     label_path = find_yolo_label_for_image(image_path)
     if label_path is None:
-        st.caption("Sem label YOLO encontrado para esta imagem; exibindo apenas comparação visual.")
+        st.caption("Sem label YOLO encontrado para esta imagem; exibindo apenas comparacao visual.")
         return
 
     truth = load_yolo_ground_truth(label_path, image_bgr.shape)
@@ -473,22 +700,23 @@ def render_selected_image_cnn_comparison(
         center_tolerance_ratio=1.34,
         radius_tolerance_ratio=1.0,
     )
-    cnn_eval = evaluation.evaluate_circles(
-        cnn_circles,
+    ellipse_eval = evaluation.evaluate_circles(
+        ellipse_circles,
         truth,
         center_tolerance_ratio=1.34,
         radius_tolerance_ratio=1.0,
     )
 
-    st.markdown("**Métricas nesta imagem selecionada**")
+    st.markdown("**Metricas nesta imagem selecionada**")
     st.dataframe(
         [
             metric_row("ACDLR", acdlr_eval),
-            metric_row("CNN YOLOv11", cnn_eval),
+            metric_row("Ellipse R-CNN", ellipse_eval),
         ],
-        use_container_width=True,
+        width="stretch",
         hide_index=True,
     )
+
 
 
 def find_yolo_label_for_image(image_path: str | None) -> Path | None:
@@ -563,10 +791,10 @@ def render_dataset_gallery(dataset_files: list[str], selected_path: str) -> None
 
     preview = load_local_image(selected_path)
     if preview is not None:
-        st.image(
+        show_fit_image(
             cv2.cvtColor(preview, cv2.COLOR_BGR2RGB),
             caption=f"Preview — {Path(selected_path).name}",
-            use_container_width=True,
+            max_width=520,
         )
 
     with st.expander("Ver galeria do dataset", expanded=True):
@@ -576,39 +804,42 @@ def render_dataset_gallery(dataset_files: list[str], selected_path: str) -> None
             if img is None:
                 continue
             with cols[idx % 3]:
-                st.image(
+                show_fit_image(
                     cv2.cvtColor(img, cv2.COLOR_BGR2RGB),
                     caption=Path(image_path).name,
-                    use_container_width=True,
+                    max_width=260,
                 )
         if len(dataset_files) > 12:
             st.caption(f"Mostrando 12 de {len(dataset_files)} tiles disponíveis.")
 
 
 def render_method_comparison() -> None:
-    st.subheader("ACDLR x CNN YOLOv11")
+    st.subheader("ACDLR x Ellipse R-CNN")
     st.markdown(
-        "A comparação neural principal agora usa o repositório aberto "
-        "`sydney-machine-learning/crater-identification`, com YOLOv11/CNN. "
-        "O ACDLR continua sendo processamento de imagem clássico, sem treino "
+        "A comparação neural principal agora usa **Ellipse R-CNN** com o modelo "
+        "`wdoppenberg/crater-rcnn`. Ele foi escolhido porque roda em imagens visuais "
+        "lunares, prediz elipses de crateras e pode ser avaliado no mesmo dataset YOLO "
+        "do ACDLR. O ACDLR continua sendo processamento de imagem clássico, sem treino "
         "neural e sem IA no método principal."
     )
 
-    metric_cards = _latest_comparison_metrics() or CNN_REFERENCE_METRICS
+    metric_cards = _latest_comparison_metrics() or AI_REFERENCE_METRICS
     metric_cols = st.columns(len(metric_cards))
     for col, metric in zip(metric_cols, metric_cards):
         with col:
             st.metric(metric["label"], metric["value"])
             st.caption(metric["caption"])
 
-    comparison_visual = Path("artifacts/acdlr_vs_crater_cnn/visual_comparison.png")
-    comparison_report = Path("artifacts/acdlr_vs_crater_cnn/comparison_report.md")
+    comparison_visual = Path("artifacts/acdlr_vs_ellipse_rcnn/visual_comparison.png")
+    comparison_report = Path("artifacts/acdlr_vs_ellipse_rcnn/comparison_report.md")
     if comparison_visual.exists():
-        st.image(
-            str(comparison_visual),
-            caption="Comparação executada: ACDLR x CNN YOLOv11",
-            use_container_width=True,
-        )
+        comparison_img = cv2.imread(str(comparison_visual), cv2.IMREAD_COLOR)
+        if comparison_img is not None:
+            show_fit_image(
+                cv2.cvtColor(comparison_img, cv2.COLOR_BGR2RGB),
+                "Comparacao executada: ACDLR x Ellipse R-CNN",
+                max_width=960,
+            )
     if comparison_report.exists():
         st.caption(f"Relatório gerado: `{comparison_report}`")
 
@@ -620,20 +851,20 @@ def render_method_comparison() -> None:
     ])
 
     with tab_summary:
-        st.dataframe(CNN_COMPARISON_ROWS, use_container_width=True, hide_index=True)
+        st.dataframe(AI_COMPARISON_ROWS, width="stretch", hide_index=True)
 
     with tab_pipeline:
-        st.dataframe(CNN_PIPELINE_ROWS, use_container_width=True, hide_index=True)
+        st.dataframe(AI_PIPELINE_ROWS, width="stretch", hide_index=True)
 
     with tab_metrics:
-        st.dataframe(CNN_METRIC_ALIGNMENT_ROWS, use_container_width=True, hide_index=True)
+        st.dataframe(AI_METRIC_ALIGNMENT_ROWS, width="stretch", hide_index=True)
         st.caption(
-            "Os dois benchmarks usam o mesmo matching: erro de centro e erro "
-            "de raio normalizados pelo raio anotado."
+            "Os dois metodos sao avaliados no mesmo split visual YOLO, com as "
+            "mesmas labels convertidas para circulos e as mesmas tolerancias."
         )
 
     with tab_limits:
-        st.dataframe(VALIDITY_LIMITATION_ROWS, use_container_width=True, hide_index=True)
+        st.dataframe(VALIDITY_LIMITATION_ROWS, width="stretch", hide_index=True)
         st.caption(
             "Essas limitações delimitam o que o ACDLR demonstra: uma solução "
             "clássica, explicável e didática, não um sistema real de navegação."
@@ -645,8 +876,8 @@ def render_method_comparison() -> None:
 
 
 def _latest_comparison_metrics() -> list[dict[str, str]] | None:
-    acdlr_path = Path("artifacts/acdlr_vs_crater_cnn/acdlr/acdlr_yolo_summary.json")
-    cnn_path = Path("artifacts/acdlr_vs_crater_cnn/crater_cnn_yolo/cnn_yolo_summary.json")
+    acdlr_path = Path("artifacts/acdlr_vs_ellipse_rcnn/acdlr/acdlr_yolo_summary.json")
+    cnn_path = Path("artifacts/acdlr_vs_ellipse_rcnn/ellipse_rcnn/ellipse_rcnn_yolo_summary.json")
     if not acdlr_path.exists() or not cnn_path.exists():
         return None
     try:
@@ -663,9 +894,9 @@ def _latest_comparison_metrics() -> list[dict[str, str]] | None:
             "caption": f"{images} valid images",
         },
         {
-            "label": "CNN F1",
+            "label": "Ellipse R-CNN F1",
             "value": f"{float(cnn.get('f1', 0.0)):.3f}",
-            "caption": "YOLOv11 baseline",
+            "caption": "same visual labels",
         },
         {
             "label": "ACDLR precision",
@@ -673,7 +904,7 @@ def _latest_comparison_metrics() -> list[dict[str, str]] | None:
             "caption": "same labels",
         },
         {
-            "label": "CNN precision",
+            "label": "Ellipse R-CNN precision",
             "value": f"{float(cnn.get('precision', 0.0)):.3f}",
             "caption": "same labels",
         },
@@ -746,44 +977,44 @@ def render_results(
     ])
 
     with tabs[0]:
-        st.image(img_rgb, caption="Original image — no modifications", use_container_width=True)
+        show_fit_image(img_rgb, "Original image — no modifications", max_width=720)
 
     with tabs[1]:
         col_a, col_b, col_c = st.columns(3)
         with col_a:
-            st.image(prep_full.gray, caption="Greyscale", use_container_width=True, clamp=True)
+            show_fit_image(prep_full.gray, "Greyscale", max_width=260, clamp=True)
         with col_b:
-            st.image(prep_full.enhanced, caption="CLAHE", use_container_width=True, clamp=True)
+            show_fit_image(prep_full.enhanced, "CLAHE", max_width=260, clamp=True)
         with col_c:
-            st.image(prep_full.sharpened, caption="Sharpened", use_container_width=True, clamp=True)
+            show_fit_image(prep_full.sharpened, "Sharpened", max_width=260, clamp=True)
 
-        st.image(prep_full.edge_hint, caption="Edge hint", use_container_width=True, clamp=True)
+        show_fit_image(prep_full.edge_hint, "Edge hint", max_width=720, clamp=True)
 
     with tabs[2]:
-        st.image(
+        show_fit_image(
             img_craters,
-            caption=f"{stats['count']} craters detected (green ring = crater boundary)",
-            use_container_width=True,
+            f"{stats['count']} craters detected (green ring = crater boundary)",
+            max_width=720,
         )
 
     with tabs[3]:
-        st.image(
+        show_fit_image(
             img_grid,
-            caption="Risk grid overlay — green=safe, red=dangerous",
-            use_container_width=True,
+            "Risk grid overlay — green=safe, red=dangerous",
+            max_width=720,
         )
 
     with tabs[4]:
-        st.image(
+        show_fit_image(
             img_final,
-            caption=f"Final result — Best landing zone: Row {best_r + 1}, Col {best_c + 1}",
-            use_container_width=True,
+            f"Final result — Best landing zone: Row {best_r + 1}, Col {best_c + 1}",
+            max_width=720,
         )
 
     with tabs[5]:
         col_heat, col_table = st.columns([1, 1])
         with col_heat:
-            st.pyplot(fig_heatmap, use_container_width=True)
+            st.pyplot(fig_heatmap, width="stretch")
         with col_table:
             st.markdown("**Region statistics**")
             st.caption(
@@ -813,13 +1044,10 @@ def render_results(
                             "Label": s.risk_label,
                         }
                     )
-            st.dataframe(rows_data, use_container_width=True, hide_index=True)
+            st.dataframe(rows_data, width="stretch", hide_index=True)
 
-    render_selected_image_cnn_comparison(
-        image_bgr=image_bgr,
-        acdlr_circles=circles,
-        image_path=image_path,
-    )
+
+    render_selected_image_ellipse_comparison(image_bgr, circles, image_path)
 
     st.divider()
     st.subheader("💾 Export")
@@ -837,7 +1065,7 @@ def render_results(
             data=_encode_png(img_craters),
             file_name="acdlr_craters.png",
             mime="image/png",
-            use_container_width=True,
+            width="stretch",
         )
 
     with col_dl2:
@@ -846,7 +1074,7 @@ def render_results(
             data=_encode_png(img_final),
             file_name="acdlr_risk_analysis.png",
             mime="image/png",
-            use_container_width=True,
+            width="stretch",
         )
 
 
@@ -939,105 +1167,440 @@ def run_analysis(image_bgr: np.ndarray, image_path: str | None = None) -> None:
     )
 
 
+def run_detection_study(
+    image_bgr: np.ndarray,
+    source_label: str,
+    *,
+    study_clahe_clip: float,
+    study_blur_ksize: int,
+    study_min_radius: int,
+    study_max_radius: int,
+    study_canny_threshold: int,
+    study_strictness: int,
+) -> None:
+    """Run the same ACDLR detection stage for qualitative cross-dataset study."""
+    progress = st.progress(0, text="Starting ACDLR detection study...")
+    t_start = time.perf_counter()
+
+    def _step(pct: int, msg: str) -> None:
+        progress.progress(pct, text=msg)
+
+    _step(10, "Step 1/4 - Splitting image into tiles...")
+    tiles = tiling.split(
+        image_bgr,
+        tile_size=tile_size,
+        overlap=overlap,
+    )
+
+    _step(30, "Step 2/4 - Running the same pre-processing...")
+    prep_results: dict[tuple[int, int], preprocessing.PreprocessResult] = {}
+    for tile in tiles:
+        prep_results[(tile.row, tile.col)] = preprocessing.run(
+            tile.image,
+            clahe_clip=study_clahe_clip,
+            blur_ksize=study_blur_ksize,
+        )
+    prep_full = preprocessing.run(image_bgr, clahe_clip=study_clahe_clip, blur_ksize=study_blur_ksize)
+
+    _step(60, "Step 3/4 - Detecting circular depression candidates...")
+    all_circles: list[np.ndarray] = []
+    for tile in tiles:
+        local = detection.detect(
+            prep_results[(tile.row, tile.col)],
+            min_radius=study_min_radius,
+            max_radius=study_max_radius,
+            param1=study_canny_threshold,
+            param2=study_strictness,
+        )
+        if local.size > 0:
+            all_circles.append(tiling.to_global(local, tile))
+
+    if all_circles:
+        merged = np.vstack(all_circles)
+        circles = tiling.deduplicate(merged)
+    else:
+        circles = np.empty((0, 3), dtype=int)
+
+    elapsed = time.perf_counter() - t_start
+    _step(100, f"Done - {elapsed:.1f}s")
+
+    h, w = image_bgr.shape[:2]
+    overlay = cv2.cvtColor(
+        draw_detection_overlay(image_bgr, circles, "ACDLR study detections", (80, 255, 100)),
+        cv2.COLOR_BGR2RGB,
+    )
+
+    st.divider()
+    st.subheader("Resultado do estudo")
+    col_a, col_b, col_c, col_d = st.columns(4)
+    col_a.metric("Detections", int(len(circles)))
+    col_b.metric("Image width", f"{w}px")
+    col_c.metric("Image height", f"{h}px")
+    col_d.metric("Runtime", f"{elapsed:.1f}s")
+    st.caption(
+        "Esta aba reaproveita o mesmo detector ACDLR. Os resultados aqui sao "
+        "qualitativos e servem para estudar comportamento fora do dominio lunar."
+    )
+    st.caption(
+        "Parametros usados: "
+        f"radius={study_min_radius}-{study_max_radius}px, "
+        f"canny={study_canny_threshold}, strictness={study_strictness}, "
+        f"CLAHE={study_clahe_clip:.1f}, blur={study_blur_ksize}."
+    )
+
+    tabs = st.tabs(["Original", "Pre-processamento", "Deteccoes"])
+    with tabs[0]:
+        show_fit_image(cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB), source_label, max_width=720)
+
+    with tabs[1]:
+        col_1, col_2, col_3 = st.columns(3)
+        with col_1:
+            show_fit_image(prep_full.gray, "Greyscale", max_width=260, clamp=True)
+        with col_2:
+            show_fit_image(prep_full.enhanced, "CLAHE", max_width=260, clamp=True)
+        with col_3:
+            show_fit_image(prep_full.sharpened, "Sharpened", max_width=260, clamp=True)
+        show_fit_image(prep_full.edge_hint, "Edge hint", max_width=720, clamp=True)
+
+    with tabs[2]:
+        show_fit_image(overlay, "ACDLR detections on study image", max_width=720)
+
+
+def render_study_tab() -> None:
+    st.subheader("Estudo do ACDLR em outros datasets")
+    st.caption(
+        "Esta area e separada do fluxo lunar principal. Ela nao altera o algoritmo: "
+        "usa os mesmos parametros e a mesma etapa de deteccao do ACDLR para estudo qualitativo."
+    )
+
+    data_datasets = discover_data_study_datasets()
+    dataset_paths = [str(dataset["path"]) for dataset in data_datasets]
+    dataset_counts = {str(dataset["path"]): int(dataset["images"]) for dataset in data_datasets}
+    preferred_names = ("holes", "pothole", "potholes", "buracos", "buracos_rua", "road_potholes")
+    default_dataset_index = 0
+    for idx, path_text in enumerate(dataset_paths):
+        if Path(path_text).name.lower() in preferred_names:
+            default_dataset_index = idx
+            break
+
+    study_mode = st.radio(
+        "Entrada para estudo",
+        options=["Dataset em data/", "Pasta personalizada", "Upload"],
+        horizontal=True,
+        index=0,
+        key="study_input_mode",
+    )
+
+    study_image: np.ndarray | None = None
+    study_label = "Study image"
+
+    with st.expander("Normalizacao de entrada para estudo", expanded=True):
+        st.caption(
+            "Esta etapa prepara imagens comuns para o detector sem atribuir escala fisica. "
+            "O algoritmo ACDLR continua igual; apenas a imagem de entrada e normalizada."
+        )
+        normalization_mode = st.selectbox(
+            "Como adaptar a imagem",
+            options=[
+                "Recortar centro + redimensionar",
+                "Adaptar com bordas",
+                "Redimensionar direto",
+                "Manter original",
+            ],
+            index=0,
+            help=(
+                "Recortar centro preserva proporcao e entrega uma imagem quadrada. "
+                "Adaptar com bordas preserva a imagem inteira. Redimensionar direto pode distorcer."
+            ),
+        )
+        target_size = st.number_input(
+            "Tamanho de entrada para estudo (px)",
+            min_value=128,
+            max_value=2048,
+            value=STUDY_TARGET_SIZE_PX,
+            step=32,
+            help="416 px combina com o dataset visual anotado usado no benchmark.",
+        )
+
+    with st.expander("Configuracoes de deteccao para estudo", expanded=True):
+        st.caption(
+            "Estas configuracoes afetam apenas esta aba. O fluxo lunar principal continua "
+            "usando os controles da sidebar e o mesmo algoritmo ACDLR."
+        )
+        preset_name = st.selectbox(
+            "Preset de estudo",
+            options=list(STUDY_DETECTION_PRESETS.keys()),
+            index=0,
+            help=(
+                "Use 'Crateras / depressoes' para manter o comportamento mais proximo "
+                "do objetivo principal. Para celulas/bolhas, aumente o raio minimo e a strictness."
+            ),
+        )
+        preset = STUDY_DETECTION_PRESETS[preset_name]
+        col_a, col_b = st.columns(2)
+        with col_a:
+            study_min_radius = st.slider(
+                "Study min radius (px)",
+                4,
+                100,
+                int(preset["min_radius"]),
+                key=f"study_min_radius_{preset_name}",
+            )
+            study_canny_threshold = st.slider(
+                "Study Canny threshold",
+                20,
+                150,
+                int(preset["canny"]),
+                key=f"study_canny_{preset_name}",
+            )
+            study_clahe_clip = st.slider(
+                "Study CLAHE clip",
+                1.0,
+                5.0,
+                float(preset["clahe"]),
+                0.1,
+                key=f"study_clahe_{preset_name}",
+            )
+        with col_b:
+            study_max_radius = st.slider(
+                "Study max radius (px)",
+                20,
+                220,
+                int(preset["max_radius"]),
+                key=f"study_max_radius_{preset_name}",
+            )
+            study_strictness = st.slider(
+                "Study detector strictness",
+                10,
+                80,
+                int(preset["strictness"]),
+                key=f"study_strictness_{preset_name}",
+            )
+            study_blur_ksize = st.slider(
+                "Study blur kernel size (odd)",
+                3,
+                15,
+                int(preset["blur"]),
+                2,
+                key=f"study_blur_{preset_name}",
+            )
+        if study_max_radius <= study_min_radius:
+            st.warning("O raio maximo precisa ser maior que o raio minimo.")
+
+    if study_mode == "Dataset em data/":
+        st.caption(
+            "Coloque seus datasets como subpastas de `data/`. O app procura imagens "
+            "recursivamente, entao estruturas como `data/holes/train/images` tambem funcionam."
+        )
+        if not dataset_paths:
+            st.info("Nenhum dataset com imagens foi encontrado dentro de `data/`.")
+            st.code(
+                "data/\n"
+                "  holes/\n"
+                "    imagem_001.jpg\n"
+                "  potholes/\n"
+                "    train/images/*.jpg",
+                language="text",
+            )
+        else:
+            selected_dataset = st.selectbox(
+                "Selecione um dataset em data/",
+                options=dataset_paths,
+                index=default_dataset_index,
+                format_func=lambda path: f"{Path(path).name} ({dataset_counts.get(path, 0)} imagens)",
+                key="study_dataset_in_data",
+            )
+            study_files = discover_images_in_directory(selected_dataset)
+            st.caption(f"Pasta selecionada: `{selected_dataset}`")
+            if not study_files:
+                st.info("Esse dataset foi encontrado, mas nenhuma imagem carregavel apareceu agora.")
+            else:
+                selected_path = st.selectbox(
+                    "Selecione uma imagem para estudo",
+                    options=study_files,
+                    format_func=lambda path: Path(path).name,
+                    key="study_selected_data_image",
+                )
+                study_image = load_local_image(selected_path)
+                study_label = f"{Path(selected_dataset).name} / {Path(selected_path).name}"
+                if study_image is not None:
+                    show_pixel_image_header(study_image, "Original study image")
+                    show_fit_image(
+                        cv2.cvtColor(study_image, cv2.COLOR_BGR2RGB),
+                        f"Original preview - {study_label}",
+                        max_width=640,
+                    )
+
+    if study_mode == "Pasta personalizada":
+        existing_candidate = next((path for path in STUDY_DATASET_DIR_CANDIDATES if path.exists()), None)
+        default_dir = str(existing_candidate) if existing_candidate is not None else "data/holes"
+        study_dir = st.text_input(
+            "Pasta com imagens de estudo",
+            value=default_dir,
+            help="Exemplo: data/potholes, data/buracos_rua ou qualquer pasta local com imagens.",
+        )
+        study_files = discover_images_in_directory(study_dir)
+        if not study_files:
+            st.info("Nenhuma imagem encontrada nessa pasta. Ajuste o caminho ou use Upload.")
+        else:
+            selected_path = st.selectbox(
+                "Selecione uma imagem para estudo",
+                options=study_files,
+                format_func=lambda path: Path(path).name,
+                key="study_selected_image",
+            )
+            study_image = load_local_image(selected_path)
+            study_label = Path(selected_path).name
+            if study_image is not None:
+                show_pixel_image_header(study_image, "Original study image")
+                show_fit_image(
+                    cv2.cvtColor(study_image, cv2.COLOR_BGR2RGB),
+                    f"Original preview - {study_label}",
+                    max_width=640,
+                )
+
+    if study_mode == "Upload":
+        uploaded = st.file_uploader(
+            "Envie uma imagem para estudo",
+            type=["png", "jpg", "jpeg", "tif", "tiff", "bmp", "webp"],
+            key="study_upload",
+        )
+        if uploaded is not None:
+            study_image = decode_image_bytes(uploaded.read())
+            study_label = uploaded.name
+            if study_image is None:
+                st.error("Could not decode the uploaded image.")
+                return
+            show_pixel_image_header(study_image, "Original study image")
+            show_fit_image(
+                cv2.cvtColor(study_image, cv2.COLOR_BGR2RGB),
+                f"Original preview - {study_label}",
+                max_width=640,
+            )
+        else:
+            st.info("Envie uma imagem ou use uma pasta local para iniciar o estudo.")
+
+    if study_image is not None:
+        normalized_image, normalization_note = normalize_study_image(
+            study_image,
+            int(target_size),
+            normalization_mode,
+        )
+        st.markdown("**Imagem que sera enviada ao ACDLR**")
+        show_pixel_image_header(normalized_image, "Normalized study image")
+        st.caption(normalization_note)
+        show_fit_image(
+            cv2.cvtColor(normalized_image, cv2.COLOR_BGR2RGB),
+            f"Normalized preview - {study_label}",
+            max_width=480,
+        )
+        can_run_study = study_max_radius > study_min_radius
+        if st.button("Run ACDLR detection study", type="primary", width="stretch", disabled=not can_run_study):
+            run_detection_study(
+                normalized_image,
+                f"{study_label} ({normalization_note})",
+                study_clahe_clip=float(study_clahe_clip),
+                study_blur_ksize=int(study_blur_ksize),
+                study_min_radius=int(study_min_radius),
+                study_max_radius=int(study_max_radius),
+                study_canny_threshold=int(study_canny_threshold),
+                study_strictness=int(study_strictness),
+            )
+
+
 # ============================================================
 # Header
 # ============================================================
 
 st.title("🌕 ACDLR")
-st.markdown(
-    "**Automated Crater Detection and Landing Risk** — "
-    "analise tiles dos datasets locais "
-    "ou envie uma nova imagem lunar para detectar crateras, avaliar o risco "
-    "de pouso por região e destacar a zona mais segura."
-)
-st.divider()
+main_tab, study_tab = st.tabs(["Crateras lunares", "Estudo em outros datasets"])
 
-with st.expander("Comparação ACDLR x CNN YOLOv11", expanded=True):
-    render_method_comparison()
+with main_tab:
+    st.markdown(
+        "**Automated Crater Detection and Landing Risk** — "
+        "analise tiles dos datasets locais "
+        "ou envie uma nova imagem lunar para detectar crateras, avaliar o risco "
+        "de pouso por região e destacar a zona mais segura."
+    )
+    st.divider()
 
-mode = st.radio(
-    "Modo de entrada",
-    options=["Dataset padrão", "Enviar imagem"],
-    horizontal=True,
-    index=0,
-)
+    with st.expander("Comparação ACDLR x Ellipse R-CNN", expanded=True):
+        render_method_comparison()
 
-analysis_image: np.ndarray | None = None
-analysis_image_path: str | None = None
-
-
-# ============================================================
-# Mode 1 — default local dataset
-# ============================================================
-
-if mode == "Dataset padrão":
-    dataset_dir, dataset_files = discover_dataset_images()
-
-    if not dataset_files:
-        st.warning(
-            "Nenhum tile local do dataset padrão foi encontrado no repositório. "
-            "Adicione arquivos de imagem em `data/LU3M6TGT_yolo_format/valid/images/` "
-            "ou use a aba de upload para analisar uma imagem manualmente."
-        )
-        st.code("data/LU3M6TGT_yolo_format/valid/images/")
-    else:
-        default_index = 0
-        selected_path = st.selectbox(
-            "Selecione um tile do dataset",
-            options=dataset_files,
-            index=default_index,
-            format_func=lambda path: Path(path).name,
-        )
-        st.caption(f"Pasta detectada: `{dataset_dir}` · {len(dataset_files)} tile(s) encontrados")
-
-        selected_image = load_local_image(selected_path)
-        if selected_image is None:
-            st.error("Não foi possível carregar o tile selecionado.")
-            st.stop()
-
-        show_image_header(selected_image, scale_mpx)
-        render_dataset_gallery(dataset_files, selected_path)
-
-        if st.button("▶ Run Analysis on selected dataset tile", type="primary", use_container_width=True):
-            analysis_image = selected_image
-            analysis_image_path = selected_path
-
-
-# ============================================================
-# Mode 2 — uploaded image
-# ============================================================
-
-if mode == "Enviar imagem":
-    st.subheader("Upload de imagem")
-    uploaded = st.file_uploader(
-        "Envie uma imagem lunar",
-        type=["png", "jpg", "jpeg", "tif", "tiff", "bmp", "webp"],
-        help="Works best with high-contrast greyscale images. Large images are tiled automatically.",
+    mode = st.radio(
+        "Modo de entrada",
+        options=["Dataset padrão", "Enviar imagem"],
+        horizontal=True,
+        index=0,
+        key="main_input_mode",
     )
 
-    if uploaded is None:
-        st.info("Envie uma imagem para começar a análise.")
-    else:
-        image_bgr = decode_image_bytes(uploaded.read())
-        if image_bgr is None:
-            st.error("Could not decode the image. Please upload a valid image file.")
-            st.stop()
+    analysis_image: np.ndarray | None = None
+    analysis_image_path: str | None = None
 
-        show_image_header(image_bgr, scale_mpx)
-        st.image(
-            cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB),
-            caption="Uploaded image (preview)",
-            use_container_width=True,
+    if mode == "Dataset padrão":
+        dataset_dir, dataset_files = discover_dataset_images()
+
+        if not dataset_files:
+            st.warning(
+                "Nenhum tile local do dataset padrão foi encontrado no repositório. "
+                "Adicione arquivos de imagem em `data/LU3M6TGT_yolo_format/valid/images/` "
+                "ou use a aba de upload para analisar uma imagem manualmente."
+            )
+            st.code("data/LU3M6TGT_yolo_format/valid/images/")
+        else:
+            default_index = 0
+            selected_path = st.selectbox(
+                "Selecione um tile do dataset",
+                options=dataset_files,
+                index=default_index,
+                format_func=lambda path: Path(path).name,
+                key="main_selected_image",
+            )
+            st.caption(f"Pasta detectada: `{dataset_dir}` · {len(dataset_files)} tile(s) encontrados")
+
+            selected_image = load_local_image(selected_path)
+            if selected_image is None:
+                st.error("Não foi possível carregar o tile selecionado.")
+                st.stop()
+
+            show_image_header(selected_image, scale_mpx)
+            render_dataset_gallery(dataset_files, selected_path)
+
+            if st.button("▶ Run Analysis on selected dataset tile", type="primary", width="stretch"):
+                analysis_image = selected_image
+                analysis_image_path = selected_path
+
+    if mode == "Enviar imagem":
+        st.subheader("Upload de imagem")
+        uploaded = st.file_uploader(
+            "Envie uma imagem lunar",
+            type=["png", "jpg", "jpeg", "tif", "tiff", "bmp", "webp"],
+            help="Works best with high-contrast greyscale images. Large images are tiled automatically.",
+            key="main_upload",
         )
 
-        if st.button("▶ Run Analysis on uploaded image", type="primary", use_container_width=True):
-            analysis_image = image_bgr
-            analysis_image_path = None
+        if uploaded is None:
+            st.info("Envie uma imagem para começar a análise.")
+        else:
+            image_bgr = decode_image_bytes(uploaded.read())
+            if image_bgr is None:
+                st.error("Could not decode the image. Please upload a valid image file.")
+                st.stop()
 
+            show_image_header(image_bgr, scale_mpx)
+            show_fit_image(
+                cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB),
+                "Uploaded image (preview)",
+                max_width=720,
+            )
 
-# ============================================================
-# Run selected analysis
-# ============================================================
+            if st.button("▶ Run Analysis on uploaded image", type="primary", width="stretch"):
+                analysis_image = image_bgr
+                analysis_image_path = None
 
-if analysis_image is not None:
-    run_analysis(analysis_image, image_path=analysis_image_path)
+    if analysis_image is not None:
+        run_analysis(analysis_image, image_path=analysis_image_path)
+
+with study_tab:
+    render_study_tab()

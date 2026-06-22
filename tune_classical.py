@@ -4,8 +4,8 @@ from __future__ import annotations
 Tune the classical ACDLR detector using annotated tiles.
 
 This is the practical "step 3" after creating a benchmark: run a compact
-grid search and choose parameters by F1, mirroring DeepMoon's validation
-strategy without introducing deep learning into the project.
+grid search and choose parameters by F1 without introducing deep learning into
+the ACDLR method.
 
 Example
 -------

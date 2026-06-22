@@ -81,10 +81,15 @@ def draw_risk_grid(
             thickness = 3 if is_best else 1
             cv2.rectangle(vis, (x1, y1), (x2, y2), border_color, thickness)
 
-            _put_text(vis, f"Risk {score:.0f}", (x1 + 8, y1 + 24), scale=0.58)
-            _put_text(vis, f"{stats.crater_count} craters", (x1 + 8, y1 + 46), scale=0.48)
+            cell_w = x2 - x1
+            cell_h = y2 - y1
+            if cell_w >= 92 and cell_h >= 42:
+                label_scale = 0.46 if cell_w < 150 else 0.52
+                _put_text(vis, f"Risk {score:.0f}", (x1 + 8, y1 + 24), scale=label_scale)
+                if cell_h >= 64:
+                    _put_text(vis, f"{stats.crater_count} craters", (x1 + 8, y1 + 46), scale=0.42)
 
-            if is_best:
+            if is_best and cell_w >= 110 and cell_h >= 78:
                 _put_text(
                     vis,
                     "BEST ZONE",
@@ -195,6 +200,42 @@ def _draw_legend(
 ) -> np.ndarray:
     vis = image.copy()
     _, w = vis.shape[:2]
+
+    if w < 560:
+        header_h = 122 if include_landing_point else 92
+        header = np.full((header_h, w, 3), 15, dtype=np.uint8)
+        cv2.line(header, (0, header_h - 1), (w, header_h - 1), (70, 70, 70), 1)
+
+        x1 = 14
+        row_y = 24
+        _put_text(header, "Legend", (x1, row_y), scale=0.50, bold=True)
+
+        row_y += 28
+        cv2.circle(header, (x1 + 10, row_y - 4), 8, CRATER_RING, 2)
+        cv2.circle(header, (x1 + 10, row_y - 4), 2, CRATER_CENTER, -1)
+        _put_text(header, "detected crater", (x1 + 26, row_y), scale=0.42)
+
+        cv2.rectangle(header, (max(14, w // 2), row_y - 14), (max(14, w // 2) + 20, row_y + 6), BEST_BORDER, 2)
+        _put_text(header, "safest", (max(44, w // 2 + 28), row_y), scale=0.42)
+
+        row_y += 28
+        cv2.rectangle(header, (x1, row_y - 14), (x1 + 20, row_y + 6), WARN_BORDER, 2)
+        cv2.rectangle(header, (x1 + 26, row_y - 14), (x1 + 46, row_y + 6), DANGER_BORDER, 2)
+        _put_text(header, "higher risk", (x1 + 56, row_y), scale=0.42)
+
+        if include_landing_point:
+            marker_x = max(14, w // 2)
+            cv2.drawMarker(
+                header,
+                (marker_x + 10, row_y - 4),
+                LANDING_POINT_COLOR,
+                markerType=cv2.MARKER_CROSS,
+                markerSize=16,
+                thickness=2,
+            )
+            _put_text(header, "landing point", (marker_x + 28, row_y), scale=0.42)
+
+        return np.vstack([header, vis])
 
     header_h = 92 if include_landing_point else 68
     header = np.full((header_h, w, 3), 15, dtype=np.uint8)

@@ -3,21 +3,19 @@
 ## Research Question
 
 Can a classical, explainable crater detector based on image processing compete
-with a CNN baseline on a YOLO-annotated lunar crater dataset?
+with a pretrained visual CNN crater detector on the same annotated lunar image
+dataset?
 
 ## Methods Compared
 
-| Method | Uses AI? | Trainable? | Output |
-|---|---|---|---|
-| ACDLR | No | No | Circles `(x, y, r)` |
-| CNN YOLOv11 | Yes | Yes | Boxes converted to circles |
+| Method | Uses AI? | Trainable in this repo? | Output | Evaluation source |
+|---|---|---|---|---|
+| ACDLR | No | No | Circles `(x, y, r)` | local visual YOLO dataset |
+| Ellipse R-CNN | Yes | No | Ellipses converted to circles | same local visual YOLO dataset |
 
 ## Primary Metric
 
 F1 score.
-
-Reason: crater detection needs a balance between not missing annotated craters
-and not hallucinating too many false positives.
 
 ## Secondary Metrics
 
@@ -45,7 +43,11 @@ center_error_ratio <= 1.34
 radius_error_ratio <= 1.0
 ```
 
-Matches are assigned greedily by lowest normalized error.
+Ellipse R-CNN predictions are converted with:
+
+```text
+radius = (ellipse_a + ellipse_b) / 2
+```
 
 ## Baseline Settings
 
@@ -58,56 +60,27 @@ canny_threshold = 45
 strictness = 16
 ```
 
-CNN:
+Ellipse R-CNN:
 
 ```text
-model = YOLOv11
-conf = 0.001
-iou = 0.15
-max_det = 150
+model = wdoppenberg/crater-rcnn
+score_threshold = 0.60
+max_detections = 150
+device = cpu
 ```
 
-## Smoke-Test Experiment
-
-Purpose: verify that the full benchmark pipeline works.
+## Compact Paper Experiment
 
 ```powershell
-python scripts\run_acdlr_vs_crater_cnn_comparison.py --max-images 3
+python scripts\run_acdlr_vs_ellipse_rcnn_comparison.py --max-images 25 --visual-count 8
 ```
 
-This is not the final experiment.
-
-## Recommended Paper Experiment
-
-1. Train the CNN on `train`.
-2. Evaluate ACDLR and CNN on the full `valid` split.
-3. Report aggregate metrics and per-image CSV.
-4. Include at least 6 visual examples:
-   - ACDLR success case;
-   - ACDLR failure case;
-   - CNN success case;
-   - CNN failure case;
-   - dense-crater tile;
-   - sparse-crater tile.
-
-Recommended command:
+## Full Validation Experiment
 
 ```powershell
-python scripts\run_acdlr_vs_crater_cnn_comparison.py ^
+python scripts\run_acdlr_vs_ellipse_rcnn_comparison.py ^
   --max-images 1545 ^
-  --visual-count 12 ^
-  --skip-cnn-train
-```
-
-If training a fresh CNN:
-
-```powershell
-python scripts\run_acdlr_vs_crater_cnn_comparison.py ^
-  --max-images 1545 ^
-  --visual-count 12 ^
-  --force-cnn-train ^
-  --cnn-train-epochs 50 ^
-  --cnn-train-fraction 1.0
+  --visual-count 12
 ```
 
 ## Reporting Template
@@ -115,12 +88,19 @@ python scripts\run_acdlr_vs_crater_cnn_comparison.py ^
 | Method | Detections | GT | TP | FP | FN | Precision | Recall | F1 |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
 | ACDLR | | | | | | | | |
-| CNN YOLOv11 | | | | | | | | |
+| Ellipse R-CNN | | | | | | | | |
 
 ## Validity Threats
 
 - YOLO boxes are approximated as circles.
-- Craters can be partially visible or visually ambiguous.
-- CNN smoke-test training is intentionally weak.
+- Ellipse R-CNN was not trained on this exact dataset, so zero-shot domain shift
+  is possible.
 - ACDLR parameters were tuned on small observed subsets.
-- Full validation metrics are needed before strong claims.
+- Full validation metrics are needed before strong final claims.
+
+## Baseline Scope
+
+The active neural baseline is Ellipse R-CNN with pretrained crater weights,
+executed without repository modifications or local fine-tuning. Any future
+trained model should be reported as a separate experiment, not mixed with the
+vanilla pretrained comparison.

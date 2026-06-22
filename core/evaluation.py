@@ -5,8 +5,8 @@ evaluation.py
 -------------
 Metricas para comparar as crateras detectadas pelo ACDLR com anotacoes
 manuais, mantendo o projeto no campo de visao computacional classica.
-As metricas seguem a logica do DeepMoon quando possivel: precision,
-recall, F1 e erros fracionarios adaptados para coordenadas em pixels.
+As metricas reportam precision, recall, F1 e erros fracionarios adaptados para
+coordenadas em pixels.
 """
 
 import csv

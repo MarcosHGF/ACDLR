@@ -1,5 +1,12 @@
 # Estrutura Dos Arquivos
 
+Este documento descreve a organizacao atual do repositorio ACDLR como artefato
+de um artigo de visao computacional. A estrutura ativa compara somente:
+
+- **ACDLR**: metodo classico, sem IA, baseado em processamento de imagem.
+- **Ellipse R-CNN**: baseline neural externo, pre-treinado para crateras e
+  executado em modo vanilla/frozen.
+
 ## Raiz
 
 ```text
@@ -7,6 +14,7 @@ README.md
 app.py
 requirements.txt
 requirements-dev.txt
+requirements-ai.txt
 environment.yml
 pyproject.toml
 CITATION.cff
@@ -18,14 +26,15 @@ output.jpg
 
 | Arquivo | Funcao |
 |---|---|
-| `README.md` | Visao geral, comandos principais e resultado atual |
-| `app.py` | Interface Streamlit |
-| `requirements.txt` | Dependencias Python |
-| `requirements-dev.txt` | Dependencias de desenvolvimento e testes |
+| `README.md` | Visao geral, instalacao, comandos e resultado atual |
+| `app.py` | Interface Streamlit para deteccao, risco e comparacao visual |
+| `requirements.txt` | Dependencias principais do ACDLR |
+| `requirements-dev.txt` | Dependencias de testes |
+| `requirements-ai.txt` | Dependencias opcionais do baseline Ellipse R-CNN |
 | `environment.yml` | Ambiente Conda reproduzivel |
 | `pyproject.toml` | Metadados Python e configuracoes de ferramentas |
 | `CITATION.cff` | Metadados de citacao do software |
-| `benchmark_classical.py` | Benchmark antigo para anotacoes CSV/JSON manuais |
+| `benchmark_classical.py` | Executor classico usado pelo benchmark do ACDLR |
 | `tune_classical.py` | Busca de parametros do detector classico |
 | `prepare_default_dataset.py` | Preparacao de tiles locais |
 | `output.jpg` | Imagem de apresentacao |
@@ -47,24 +56,12 @@ core/
 | Arquivo | Funcao |
 |---|---|
 | `preprocessing.py` | Tons de cinza, CLAHE, blur, realce e bordas |
-| `detection.py` | Detector classico de crateras |
-| `measurement.py` | Converte circulos em medidas fisicas |
-| `risk.py` | Calcula score de risco e ponto de pouso |
-| `visualization.py` | Desenha crateras, grade e resultado final |
-| `tiling.py` | Divide imagem em tiles e recompõe coordenadas |
-| `evaluation.py` | Calcula precision, recall, F1 e erros |
-
-## Tests
-
-```text
-tests/
-  README.md
-  test_evaluation.py
-```
-
-| Arquivo | Funcao |
-|---|---|
-| `test_evaluation.py` | Testes de regressao das metricas de benchmark |
+| `detection.py` | Detector ACDLR com filtro multi-escala e validacao geometrica |
+| `measurement.py` | Converte circulos detectados em medidas fisicas |
+| `risk.py` | Calcula score de risco e ponto sugerido de pouso |
+| `visualization.py` | Desenha crateras, grade de risco, legenda e resultado final |
+| `tiling.py` | Divide imagens grandes em tiles e recompõe coordenadas |
+| `evaluation.py` | Calcula precision, recall, F1 e erros normalizados |
 
 ## Scripts
 
@@ -72,20 +69,21 @@ tests/
 scripts/
   README.md
   benchmark_yolo_dataset.py
-  train_crater_cnn_yolo.py
-  benchmark_crater_cnn_yolo.py
-  run_acdlr_vs_crater_cnn_comparison.py
+  setup_ellipse_rcnn_pretrained.py
+  benchmark_ellipse_rcnn_yolo_dataset.py
+  run_acdlr_vs_ellipse_rcnn_comparison.py
+  run_toricelli_step_test.py
+  validate_lroc_toricelli_dataset.py
 ```
 
 | Script | Funcao |
 |---|---|
-| `benchmark_yolo_dataset.py` | Avalia o ACDLR em dataset YOLO |
-| `train_crater_cnn_yolo.py` | Treina baseline CNN YOLOv11 |
-| `benchmark_crater_cnn_yolo.py` | Avalia CNN no mesmo dataset |
-| `run_acdlr_vs_crater_cnn_comparison.py` | Roda comparacao completa ACDLR x CNN |
-
-Scripts antigos relacionados a DeepMoon podem existir como referencia historica,
-mas o comparador principal atual e o YOLOv11/CNN.
+| `benchmark_yolo_dataset.py` | Avalia o ACDLR no dataset YOLO anotado |
+| `setup_ellipse_rcnn_pretrained.py` | Clona Ellipse R-CNN e baixa o peso `wdoppenberg/crater-rcnn` |
+| `benchmark_ellipse_rcnn_yolo_dataset.py` | Avalia Ellipse R-CNN no mesmo dataset visual |
+| `run_acdlr_vs_ellipse_rcnn_comparison.py` | Roda ACDLR e Ellipse R-CNN, gera graficos, visuais e relatorio |
+| `run_toricelli_step_test.py` | Teste historico do fluxo Torricelli/LROC |
+| `validate_lroc_toricelli_dataset.py` | Validacao de dataset local Torricelli/LROC |
 
 ## Configs
 
@@ -94,15 +92,13 @@ configs/
   acdlr_default.yaml
   benchmark_smoke.yaml
   benchmark_valid25.yaml
-  cnn_baseline_smoke.yaml
 ```
 
 | Arquivo | Funcao |
 |---|---|
 | `acdlr_default.yaml` | Parametros padrao do detector classico |
-| `benchmark_smoke.yaml` | Protocolo do teste pequeno ACDLR x CNN |
-| `benchmark_valid25.yaml` | Protocolo para 25 imagens do split valid |
-| `cnn_baseline_smoke.yaml` | Parametros de treino/inferencia da CNN rapida |
+| `benchmark_smoke.yaml` | Protocolo pequeno para validacao rapida |
+| `benchmark_valid25.yaml` | Protocolo para 25 imagens do split `valid` |
 
 ## Dataset
 
@@ -115,30 +111,37 @@ data/LU3M6TGT_yolo_format/
   data.yaml
 ```
 
-As imagens e labels ficam ignoradas pelo Git por serem dados locais/grandes.
+As imagens e labels ficam fora do versionamento por serem dados locais/grandes.
+As anotacoes YOLO sao convertidas para crateras circulares para permitir a
+mesma metrica entre ACDLR e Ellipse R-CNN.
 
 ## External
 
 ```text
-external/crater-identification/
+external/ellipse-rcnn/
 ```
 
-Repositorio externo usado como referencia para o comparador CNN YOLOv11.
+| Pasta | Funcao |
+|---|---|
+| `external/ellipse-rcnn` | Codigo vanilla do baseline neural externo |
+
+O repositorio externo e clonado por `scripts/setup_ellipse_rcnn_pretrained.py`.
+Ele nao deve ser alterado para manter a comparacao honesta.
 
 ## Artifacts
 
 ```text
 artifacts/
-  acdlr_vs_crater_cnn/
-  crater_cnn_yolo_train/
-  ultralytics_config/
+  acdlr_yolo_benchmark/
+  acdlr_vs_ellipse_rcnn/
+  ellipse_rcnn_pretrained/
 ```
 
 | Pasta | Funcao |
 |---|---|
-| `acdlr_vs_crater_cnn` | Relatorio, JSONs e imagem lado a lado |
-| `crater_cnn_yolo_train` | Pesos treinados da CNN |
-| `ultralytics_config` | Configuracao local do Ultralytics |
+| `acdlr_yolo_benchmark` | Resultados do ACDLR puro no dataset local |
+| `acdlr_vs_ellipse_rcnn` | Relatorio, grafico e visual ACDLR x Ellipse R-CNN |
+| `ellipse_rcnn_pretrained` | Manifesto e pesos do modelo `wdoppenberg/crater-rcnn` |
 
 Os arquivos em `artifacts/` sao gerados automaticamente e nao precisam ser
 versionados.
@@ -147,7 +150,9 @@ versionados.
 
 ```text
 docs/
+  AI_BASELINE_ELLIPSE_RCNN.md
   ACDLR_CONFIGURACAO.md
+  ARTIGO_CIENTIFICO_ACDLR.md
   COMO_RODAR.md
   METODOLOGIA.md
   BENCHMARK_E_RESULTADOS.md
@@ -170,6 +175,5 @@ reports/
   README.md
 ```
 
-`paper/` reserva espaco para o manuscrito e figuras finais. `reports/` serve
-para relatorios estaveis selecionados para apresentacao ou publicacao. Saidas
-brutas continuam em `artifacts/`.
+`paper/` guarda materiais para escrita do artigo. `reports/` aponta para os
+relatorios gerados em `artifacts/`.

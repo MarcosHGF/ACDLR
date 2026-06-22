@@ -1,23 +1,35 @@
 # Experiment Scripts
 
-This folder contains reproducible command-line scripts for running the method,
-benchmarks and comparisons.
+This folder contains reproducible command-line scripts for running ACDLR,
+benchmarks and comparison reports.
 
-## Main Scripts
+## Main Article Scripts
 
 | Script | Purpose |
 |---|---|
-| `benchmark_yolo_dataset.py` | Evaluate ACDLR on a YOLO-format annotated dataset |
-| `train_crater_cnn_yolo.py` | Train the YOLOv11 CNN comparison baseline |
-| `benchmark_crater_cnn_yolo.py` | Evaluate the CNN baseline on the same dataset |
-| `run_acdlr_vs_crater_cnn_comparison.py` | Run the full ACDLR x CNN benchmark and visual report |
+| `benchmark_yolo_dataset.py` | Evaluate ACDLR on a YOLO-format annotated visual dataset |
+| `setup_ellipse_rcnn_pretrained.py` | Clone Ellipse R-CNN and download crater-rcnn weights |
+| `benchmark_ellipse_rcnn_yolo_dataset.py` | Evaluate Ellipse R-CNN on the same visual YOLO dataset |
+| `run_acdlr_vs_ellipse_rcnn_comparison.py` | Generate the fair ACDLR x Ellipse R-CNN report, chart and visual comparison |
 
 ## Recommended Commands
 
-Run ACDLR x CNN:
+Prepare Ellipse R-CNN:
 
 ```powershell
-python scripts\run_acdlr_vs_crater_cnn_comparison.py --max-images 5
+python scripts\setup_ellipse_rcnn_pretrained.py
+```
+
+Skip the large weight download during quick setup:
+
+```powershell
+python scripts\setup_ellipse_rcnn_pretrained.py --skip-download
+```
+
+Run the fair ACDLR x Ellipse R-CNN comparison:
+
+```powershell
+python scripts\run_acdlr_vs_ellipse_rcnn_comparison.py --max-images 25 --visual-count 8
 ```
 
 Run only ACDLR:
@@ -26,20 +38,24 @@ Run only ACDLR:
 python scripts\benchmark_yolo_dataset.py --split valid --max-images 25
 ```
 
-Train CNN baseline:
+Run only Ellipse R-CNN:
 
 ```powershell
-python scripts\train_crater_cnn_yolo.py --epochs 1 --fraction 0.02
+python scripts\benchmark_ellipse_rcnn_yolo_dataset.py --split valid --max-images 25
 ```
 
-## Legacy/Reference Scripts
-
-Some scripts related to DeepMoon and earlier LROC experiments remain in this
-folder for traceability. The current primary article-style comparison is:
+## Outputs
 
 ```text
-ACDLR x CNN YOLOv11
+artifacts/acdlr_vs_ellipse_rcnn/comparison_report.md
+artifacts/acdlr_vs_ellipse_rcnn/visual_comparison.png
+artifacts/acdlr_vs_ellipse_rcnn/charts/acdlr_vs_ellipse_rcnn_metrics.png
+artifacts/acdlr_vs_ellipse_rcnn/run_summary.json
 ```
 
-not DeepMoon, because the local annotated dataset is visual imagery in YOLO
-format.
+## Method Boundary
+
+The active article comparison uses only the scripts listed above. The ACDLR
+script runs the classical method; the Ellipse script runs the external
+pretrained neural baseline. Previous comparison scripts were removed from the
+active repository structure to keep the experiment clean.
