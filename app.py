@@ -517,6 +517,16 @@ with st.sidebar:
         step=0.1,
         help="Adjust according to the selected dataset scale.",
     )
+    st.divider()
+    st.subheader("Benchmark")
+    run_cnn_comparison = st.checkbox(
+        "Rodar Ellipse R-CNN nesta imagem",
+        value=False,
+        help=(
+            "Desligue para avaliar somente o ACDLR puro. "
+            "Quando a imagem vem do dataset anotado, a tabela ACDLR aparece mesmo sem CNN."
+        ),
+    )
     st.caption(
         "_O novo dataset YOLO local usa imagens 416 x 416 com anotações em labels/. "
         "A escala em metros é usada apenas no fluxo lunar/risco, não na aba de estudo._"
@@ -650,8 +660,39 @@ def render_selected_image_ellipse_comparison(
     image_bgr: np.ndarray,
     acdlr_circles: np.ndarray,
     image_path: str | None,
+    run_cnn: bool,
 ) -> None:
     st.divider()
+    st.subheader("Resultados no dataset anotado")
+
+    label_path = find_yolo_label_for_image(image_path)
+    truth: list[evaluation.GroundTruthCrater] | None = None
+    acdlr_eval: evaluation.EvaluationResult | None = None
+    if label_path is None:
+        st.caption(
+            "Sem label YOLO para esta imagem. A tabela de acertos/erros aparece "
+            "quando o tile selecionado vem de uma pasta `images/` com label correspondente em `labels/`."
+        )
+    else:
+        truth = load_yolo_ground_truth(label_path, image_bgr.shape)
+        acdlr_eval = evaluation.evaluate_circles(
+            acdlr_circles,
+            truth,
+            center_tolerance_ratio=1.34,
+            radius_tolerance_ratio=1.0,
+        )
+
+        st.markdown("**ACDLR puro nesta imagem**")
+        st.caption(
+            "Matching com labels YOLO convertidas para circulos "
+            "(center <= 1.34 x raio GT; radius <= 1.0 x raio GT)."
+        )
+        st.dataframe([metric_row("ACDLR", acdlr_eval)], width="stretch", hide_index=True)
+
+    if not run_cnn:
+        st.caption("CNN desativada na sidebar; exibindo somente os resultados do ACDLR puro.")
+        return
+
     st.subheader("Comparacao final: ACDLR x Ellipse R-CNN")
 
     with st.spinner("Executando Ellipse R-CNN na mesma imagem..."):
@@ -688,18 +729,10 @@ def render_selected_image_ellipse_comparison(
     with col_b:
         show_fit_image(ellipse_overlay, "Ellipse R-CNN - CNN visual pre-treinada", max_width=520)
 
-    label_path = find_yolo_label_for_image(image_path)
-    if label_path is None:
+    if truth is None or acdlr_eval is None:
         st.caption("Sem label YOLO encontrado para esta imagem; exibindo apenas comparacao visual.")
         return
 
-    truth = load_yolo_ground_truth(label_path, image_bgr.shape)
-    acdlr_eval = evaluation.evaluate_circles(
-        acdlr_circles,
-        truth,
-        center_tolerance_ratio=1.34,
-        radius_tolerance_ratio=1.0,
-    )
     ellipse_eval = evaluation.evaluate_circles(
         ellipse_circles,
         truth,
@@ -707,7 +740,7 @@ def render_selected_image_ellipse_comparison(
         radius_tolerance_ratio=1.0,
     )
 
-    st.markdown("**Metricas nesta imagem selecionada**")
+    st.markdown("**Metricas comparativas nesta imagem selecionada**")
     st.dataframe(
         [
             metric_row("ACDLR", acdlr_eval),
@@ -765,6 +798,8 @@ def metric_row(method: str, result: evaluation.EvaluationResult) -> dict[str, in
         "Precision": f"{result.precision:.3f}",
         "Recall": f"{result.recall:.3f}",
         "F1": f"{result.f1:.3f}",
+        "Center err/r": f"{result.mean_center_error_ratio:.3f}",
+        "Radius err/r": f"{result.mean_radius_error_ratio:.3f}",
     }
 
 
@@ -925,6 +960,7 @@ def render_results(
     grid_cols: int,
     landing_point,
     image_path: str | None = None,
+    run_cnn: bool = False,
 ) -> None:
     img_rgb = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)
     img_craters = cv2.cvtColor(
@@ -1047,7 +1083,7 @@ def render_results(
             st.dataframe(rows_data, width="stretch", hide_index=True)
 
 
-    render_selected_image_ellipse_comparison(image_bgr, circles, image_path)
+    render_selected_image_ellipse_comparison(image_bgr, circles, image_path, run_cnn)
 
     st.divider()
     st.subheader("💾 Export")
@@ -1164,6 +1200,7 @@ def run_analysis(image_bgr: np.ndarray, image_path: str | None = None) -> None:
         grid_cols=grid_cols,
         landing_point=landing_point,
         image_path=image_path,
+        run_cnn=run_cnn_comparison,
     )
 
 
