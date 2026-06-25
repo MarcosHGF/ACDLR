@@ -7,6 +7,7 @@ benchmarks and comparison reports.
 
 | Script | Purpose |
 |---|---|
+| `setup_lu3m6tgt_dataset.py` | Download and prepare the Kaggle LU3M6TGT YOLO dataset |
 | `benchmark_yolo_dataset.py` | Evaluate ACDLR on a YOLO-format annotated visual dataset |
 | `setup_ellipse_rcnn_pretrained.py` | Clone Ellipse R-CNN and download crater-rcnn weights |
 | `benchmark_ellipse_rcnn_yolo_dataset.py` | Evaluate Ellipse R-CNN on the same visual YOLO dataset |
@@ -18,6 +19,12 @@ Prepare Ellipse R-CNN:
 
 ```powershell
 python scripts\setup_ellipse_rcnn_pretrained.py
+```
+
+Prepare the LU3M6TGT Kaggle dataset:
+
+```powershell
+python scripts\setup_lu3m6tgt_dataset.py
 ```
 
 Skip the large weight download during quick setup:
