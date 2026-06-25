@@ -1,119 +1,66 @@
 # ACDLR - Automated Crater Detection and Landing Risk
 
-Aplicacao de visao computacional para detectar crateras lunares por
-processamento classico de imagem e estimar risco visual de pouso por regiao.
+Aplicacao academica de visao computacional para detectar crateras lunares por
+processamento classico de imagem, avaliar acertos em dataset anotado e comparar
+o metodo ACDLR com uma CNN externa pre-treinada para crateras.
 
-![Imagem do projeto](./output.jpg)
+O metodo principal do projeto e o **ACDLR puro**: ele nao usa IA, CNN,
+treinamento supervisionado ou modelos generativos. A CNN aparece apenas como
+baseline externo de comparacao.
 
 ## Resumo
 
-O ACDLR detecta crateras em imagens da superficie lunar **sem IA no metodo
-principal**. O pipeline usa OpenCV, filtros, bordas, realce de contraste,
-validacao geometrica/fotometrica e analise por grade. Depois da deteccao, o
-sistema mede crateras, calcula um score de risco por regiao e sugere uma area
-mais favoravel para pouso dentro da imagem.
+O ACDLR detecta crateras em imagens lunares usando OpenCV, realce de contraste,
+bordas, filtros circulares multi-escala, validacao geometrica/fotometrica,
+refinamento local e deduplicacao. A interface Streamlit permite:
 
-O comparador de IA principal do repositorio agora e **Ellipse R-CNN**
-(`wdoppenberg/crater-rcnn`). Ele foi escolhido porque roda em imagens visuais
-lunares, possui peso pre-treinado de crateras e produz elipses que podem ser
-comparadas com as mesmas labels YOLO usadas pelo ACDLR.
+- selecionar imagens do dataset anotado;
+- rodar o ACDLR puro;
+- ver etapas intermediarias do processamento;
+- medir TP, FP, FN, precision, recall e F1 quando existe label YOLO;
+- estudar o mesmo detector em outros datasets circulares;
+- opcionalmente rodar Ellipse R-CNN e ver a comparacao lado a lado.
 
-A comparacao justa de acertos e ACDLR x Ellipse R-CNN no mesmo split visual
-YOLO, com o baseline neural executado como modelo externo pre-treinado.
+O baseline neural atual e **Ellipse R-CNN** com o peso
+`wdoppenberg/crater-rcnn`, usando o repositorio aberto
+`wdoppenberg/ellipse-rcnn`.
 
-## O Que O Projeto Faz
-
-1. Carrega uma imagem lunar ou um tile do dataset local.
-2. Aplica pre-processamento: tons de cinza, CLAHE, suavizacao e realce.
-3. Detecta crateras com processamento classico:
-   - filtro casado multi-escala;
-   - resposta por energia de aro;
-   - candidatos por maximos locais;
-   - validacao por contraste, borda, gradiente e suporte angular;
-   - refinamento local por Hough;
-   - deduplicacao de crateras sobrepostas.
-4. Mede centro, raio, diametro e area das crateras.
-5. Divide a imagem em grade e calcula risco visual por regiao.
-6. Mostra imagens intermediarias, crateras detectadas, mapa de risco e melhor
-   ponto sugerido.
-7. Gera relatorios, graficos e visualizacao lado a lado ACDLR x Ellipse R-CNN.
-
-## Estrutura Principal
+## Estrutura
 
 ```text
 app.py                                            Interface Streamlit
-core/detection.py                                 Detector classico ACDLR
 core/preprocessing.py                             Pre-processamento
-core/risk.py                                      Score de risco e ponto de pouso
-core/evaluation.py                                Metricas de benchmark
-scripts/benchmark_yolo_dataset.py                 Avalia ACDLR no dataset YOLO
-scripts/setup_ellipse_rcnn_pretrained.py          Clona Ellipse R-CNN e baixa peso
-scripts/benchmark_ellipse_rcnn_yolo_dataset.py    Avalia Ellipse R-CNN no dataset
-scripts/run_acdlr_vs_ellipse_rcnn_comparison.py   Roda ACDLR x Ellipse R-CNN
-docs/AI_BASELINE_ELLIPSE_RCNN.md                  Justificativa do baseline IA
-docs/ACDLR_CONFIGURACAO.md                        Como o ACDLR funciona/configs
-docs/ARTIGO_CIENTIFICO_ACDLR.md                   Texto tecnico em formato artigo
-configs/                                          Configuracoes dos experimentos
-paper/                                            Materiais reservados para artigo
-reports/                                          Relatorios selecionados
+core/detection.py                                 Detector classico ACDLR
+core/evaluation.py                                Matching e metricas
+core/risk.py                                      Grade de risco visual
+scripts/benchmark_yolo_dataset.py                 Benchmark ACDLR puro
+scripts/setup_ellipse_rcnn_pretrained.py          Prepara Ellipse R-CNN
+scripts/benchmark_ellipse_rcnn_yolo_dataset.py    Benchmark Ellipse R-CNN
+scripts/run_acdlr_vs_ellipse_rcnn_comparison.py   Comparacao ACDLR x CNN
+docs/COMO_RODAR.md                                Passo a passo completo
+paper/                                            Artigo e figuras
+data/                                             Datasets locais, nao versionados
+external/                                         Repositorios externos clonados
+artifacts/                                        Saidas de benchmark e pesos
 ```
 
-Os scripts antigos de baselines anteriores foram removidos da estrutura ativa para
-evitar comparacoes misturadas. O baseline neural do artigo agora e somente
-Ellipse R-CNN, executado sem alterar o repositorio externo e avaliado no mesmo
-dataset visual do ACDLR.
+## Requisitos
 
-## Dataset
+- Python 3.11 ou superior para o ACDLR.
+- Python 3.12 ou superior recomendado para o baseline Ellipse R-CNN.
+- Git instalado.
+- Windows PowerShell, Linux shell ou macOS shell.
+- Dataset YOLO de crateras em `data/LU3M6TGT_yolo_format`.
+- Internet apenas para clonar repositorios externos e baixar pesos.
 
-O dataset anotado usado no benchmark ACDLR fica em:
-
-```text
-data/LU3M6TGT_yolo_format
-```
-
-Estrutura esperada:
-
-```text
-data/LU3M6TGT_yolo_format/
-  train/images
-  train/labels
-  valid/images
-  valid/labels
-```
-
-As anotacoes seguem formato YOLO:
-
-```text
-classe x_centro y_centro largura altura
-```
-
-Para comparar com o ACDLR, cada box YOLO e convertido em uma cratera circular:
-
-```text
-cx = x_centro * largura_da_imagem
-cy = y_centro * altura_da_imagem
-raio = media(largura_box_px, altura_box_px) / 2
-```
-
-## Instalacao Global
-
-Clone este repositorio:
+## Instalacao Rapida
 
 ```bash
-git clone <URL_DO_REPOSITORIO_ACDLR> ACDLR
+git clone https://github.com/MarcosHGF/ACDLR.git ACDLR
 cd ACDLR
 ```
 
-Crie o ambiente e instale dependencias:
-
-```bash
-python -m venv .venv
-source .venv/bin/activate
-python -m pip install --upgrade pip
-python -m pip install -r requirements.txt
-```
-
-No Windows PowerShell:
+### Windows PowerShell
 
 ```powershell
 python -m venv .venv
@@ -122,55 +69,80 @@ python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
 ```
 
-Opcional com Conda:
+### Linux/macOS
 
 ```bash
-conda env create -f environment.yml
-conda activate acdlr
+python -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
 ```
 
-## Preparar O Baseline IA Visual
+## Dataset De Crateras
 
-Comando recomendado:
+O app e os benchmarks esperam este caminho:
+
+```text
+data/LU3M6TGT_yolo_format/
+  train/images/
+  train/labels/
+  valid/images/
+  valid/labels/
+  data.yaml
+```
+
+O dataset oficial usado no projeto e:
+
+```text
+https://www.kaggle.com/datasets/riccardolagrassa/lu3m6tgt
+```
+
+Baixe e organize automaticamente com:
 
 ```bash
-python scripts/setup_ellipse_rcnn_pretrained.py
+python scripts/setup_lu3m6tgt_dataset.py
 ```
 
-Esse comando:
+Se o KaggleHub pedir autenticacao, configure sua conta Kaggle ou baixe o zip
+manualmente pela pagina acima.
 
-1. clona `https://github.com/wdoppenberg/ellipse-rcnn` em `external/ellipse-rcnn`;
-2. instala `ellipse-rcnn[hf]`;
-3. baixa `wdoppenberg/crater-rcnn` para
-   `artifacts/ellipse_rcnn_pretrained/crater-rcnn`;
-4. gera um `manifest.json` com origem, caminhos e observacoes.
+Esse script usa internamente:
 
-Se quiser apenas clonar/registrar o baseline sem baixar o arquivo grande:
+```python
+import kagglehub
+
+path = kagglehub.dataset_download("riccardolagrassa/lu3m6tgt")
+print("Path to dataset files:", path)
+```
+
+Se preferir baixar o `.zip` manualmente pelo Kaggle, extraia para que a pasta
+final seja exatamente:
+
+```text
+data/LU3M6TGT_yolo_format
+```
+
+Conferencia rapida:
 
 ```bash
-python scripts/setup_ellipse_rcnn_pretrained.py --skip-download
+python -c "from pathlib import Path; p=Path('data/LU3M6TGT_yolo_format'); print((p/'valid/images').exists(), (p/'valid/labels').exists())"
 ```
 
-Clone manual equivalente:
+As labels devem seguir YOLO:
 
-```bash
-mkdir -p external
-git clone https://github.com/wdoppenberg/ellipse-rcnn.git external/ellipse-rcnn
+```text
+class x_center y_center width height
 ```
 
-Referencias:
+No benchmark, cada box YOLO e convertido para cratera circular:
 
-- Repositorio standalone do modelo: https://github.com/wdoppenberg/ellipse-rcnn
-- Projeto completo/TRN relacionado: https://github.com/wdoppenberg/crater-detection
-- Peso: https://huggingface.co/wdoppenberg/crater-rcnn
-- Paper base: https://arxiv.org/abs/2001.11584
+```text
+cx = x_center * image_width
+cy = y_center * image_height
+radius = (box_width_px + box_height_px) / 4
+```
 
-Observacao: `wdoppenberg/crater-detection` e o projeto completo de navegacao
-lunar que usa Ellipse R-CNN e pattern matching. Para inferencia standalone do
-detector, o proprio projeto aponta para `wdoppenberg/ellipse-rcnn`; por isso o
-ACDLR usa `ellipse-rcnn` + o peso treinado `wdoppenberg/crater-rcnn`.
-
-## Como Rodar A Interface
+## Rodar A Aplicacao
 
 ```bash
 streamlit run app.py
@@ -182,126 +154,155 @@ Abra:
 http://localhost:8501
 ```
 
-Na interface voce pode escolher um tile, enviar uma imagem, ajustar parametros
-do ACDLR, ver resultados intermediarios e visualizar a comparacao ACDLR x
-Ellipse R-CNN quando ela ja tiver sido gerada.
+Na aba **Crateras lunares**:
 
-## Rodar Apenas O ACDLR
+1. selecione `Dataset padrao`;
+2. escolha um tile;
+3. deixe `Rodar Ellipse R-CNN nesta imagem` desligado para ACDLR puro;
+4. clique em `Run Analysis on selected dataset tile`;
+5. veja a tabela **ACDLR puro nesta imagem** com TP, FP, FN, precision, recall e F1.
 
-Teste pequeno:
+Para comparar com a CNN na mesma imagem, ligue `Rodar Ellipse R-CNN nesta imagem`
+na sidebar. Se os pesos ainda nao existirem, siga a secao abaixo.
+
+## Preparar Ellipse R-CNN
+
+O comando recomendado clona o repositorio externo, instala o pacote e baixa o
+peso pre-treinado:
+
+```bash
+python scripts/setup_ellipse_rcnn_pretrained.py
+```
+
+Ele cria:
+
+```text
+external/ellipse-rcnn/
+artifacts/ellipse_rcnn_pretrained/crater-rcnn/
+```
+
+Repositorio externo usado:
+
+```text
+https://github.com/wdoppenberg/ellipse-rcnn
+```
+
+Peso pre-treinado usado:
+
+```text
+https://huggingface.co/wdoppenberg/crater-rcnn
+```
+
+Projeto completo relacionado:
+
+```text
+https://github.com/wdoppenberg/crater-detection
+```
+
+Se quiser preparar manualmente:
+
+```bash
+mkdir -p external
+git clone https://github.com/wdoppenberg/ellipse-rcnn.git external/ellipse-rcnn
+python -m pip install -r requirements-ai.txt
+python -m pip install -e "external/ellipse-rcnn[hf]"
+```
+
+Se o download automatico do Hugging Face falhar, baixe manualmente
+`model.safetensors` em:
+
+```text
+https://huggingface.co/wdoppenberg/crater-rcnn/tree/main
+```
+
+e coloque em:
+
+```text
+artifacts/ellipse_rcnn_pretrained/crater-rcnn/model.safetensors
+```
+
+## Rodar Benchmarks
+
+ACDLR puro no dataset YOLO:
 
 ```bash
 python scripts/benchmark_yolo_dataset.py --split valid --max-images 25
 ```
 
-Configuracao usada no benchmark compacto atual:
-
-```bash
-python scripts/benchmark_yolo_dataset.py \
-  --dataset-dir data/LU3M6TGT_yolo_format \
-  --split valid \
-  --max-images 25 \
-  --out-dir artifacts/acdlr_yolo_benchmark \
-  --min-radius 4 \
-  --max-radius 70 \
-  --canny-threshold 45 \
-  --strictness 16 \
-  --center-tolerance 1.34 \
-  --radius-tolerance 1.0
-```
-
-Saidas:
-
-```text
-artifacts/acdlr_yolo_benchmark/acdlr_yolo_report.md
-artifacts/acdlr_yolo_benchmark/acdlr_yolo_summary.json
-artifacts/acdlr_yolo_benchmark/acdlr_yolo_benchmark.csv
-artifacts/acdlr_yolo_benchmark/visuals/
-```
-
-## Rodar A Comparacao ACDLR x Ellipse R-CNN
-
-Comando principal do benchmark compacto:
+Comparacao ACDLR x Ellipse R-CNN:
 
 ```bash
 python scripts/run_acdlr_vs_ellipse_rcnn_comparison.py --max-images 25 --visual-count 8
 ```
 
-Teste rapido para verificar instalacao:
+Teste rapido de instalacao:
 
 ```bash
 python scripts/run_acdlr_vs_ellipse_rcnn_comparison.py --max-images 3 --visual-count 2
 ```
 
-Esse comando:
-
-1. roda o ACDLR no dataset visual anotado local;
-2. roda Ellipse R-CNN no mesmo split visual;
-3. calcula precision, recall e F1;
-4. gera grafico de metricas;
-5. gera imagem lado a lado;
-6. gera relatorio Markdown e JSON de resumo.
-
 Saidas principais:
 
 ```text
+artifacts/acdlr_yolo_benchmark/
 artifacts/acdlr_vs_ellipse_rcnn/comparison_report.md
 artifacts/acdlr_vs_ellipse_rcnn/visual_comparison.png
 artifacts/acdlr_vs_ellipse_rcnn/charts/acdlr_vs_ellipse_rcnn_metrics.png
 artifacts/acdlr_vs_ellipse_rcnn/run_summary.json
-artifacts/acdlr_vs_ellipse_rcnn/acdlr/acdlr_yolo_summary.json
-artifacts/acdlr_vs_ellipse_rcnn/ellipse_rcnn/ellipse_rcnn_yolo_summary.json
 ```
 
-## Estado Do Benchmark Atual
+## Resultado Compacto Atual
 
-O benchmark ACDLR x Ellipse R-CNN foi validado no dataset local com:
-
-```bash
-python scripts/run_acdlr_vs_ellipse_rcnn_comparison.py --max-images 25 --visual-count 8
-```
-
-Resultado do experimento de 25 imagens:
+Experimento com 25 imagens do split `valid`:
 
 | Metodo | Det. | GT | TP | FP | FN | Precision | Recall | F1 |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
 | ACDLR | 2610 | 2994 | 1399 | 1211 | 1595 | 0.536 | 0.467 | 0.499 |
 | Ellipse R-CNN | 316 | 2994 | 178 | 138 | 2816 | 0.563 | 0.059 | 0.108 |
 
-Interpretacao curta: o Ellipse R-CNN teve precision ligeiramente maior, mas
-recall muito menor neste dataset local. Por isso o ACDLR ficou melhor em F1
-neste protocolo zero-shot/pre-treinado. Isso nao significa que processamento
-classico seja superior a CNNs em geral; significa que, neste conjunto visual e
-sem fine-tuning local da CNN, o ACDLR recuperou mais crateras anotadas.
+Interpretacao: neste dataset local e sem fine-tuning da CNN, o ACDLR obteve
+maior F1 por recuperar mais crateras anotadas. A CNN teve precision ligeiramente
+maior, mas recall baixo. Isso nao prova superioridade geral de metodos classicos;
+apenas descreve este protocolo zero-shot/pre-treinado.
 
-Artefatos gerados:
+## Solucao De Problemas
+
+Se a porta `8501` estiver ocupada:
+
+```bash
+streamlit run app.py --server.port 8502
+```
+
+Se a tabela de acertos nao aparecer no app, verifique se a imagem selecionada
+vem de:
 
 ```text
-artifacts/acdlr_vs_ellipse_rcnn/comparison_report.md
-artifacts/acdlr_vs_ellipse_rcnn/visual_comparison.png
-artifacts/acdlr_vs_ellipse_rcnn/charts/acdlr_vs_ellipse_rcnn_metrics.png
+data/LU3M6TGT_yolo_format/valid/images
+```
+
+e se existe label com o mesmo nome em:
+
+```text
+data/LU3M6TGT_yolo_format/valid/labels
+```
+
+Se a CNN nao carregar, confirme:
+
+```text
+artifacts/ellipse_rcnn_pretrained/crater-rcnn/model.safetensors
+external/ellipse-rcnn/
 ```
 
 ## Documentacao
 
-- [Como rodar](docs/COMO_RODAR.md)
-- [Apresentacao e fala pronta](docs/APRESENTACAO.md)
-- [Baseline IA visual: Ellipse R-CNN](docs/AI_BASELINE_ELLIPSE_RCNN.md)
+- [Passo a passo completo](docs/COMO_RODAR.md)
+- [Baseline IA visual](docs/AI_BASELINE_ELLIPSE_RCNN.md)
 - [Configuracao do ACDLR](docs/ACDLR_CONFIGURACAO.md)
-- [Artigo tecnico completo](docs/ARTIGO_CIENTIFICO_ACDLR.md)
 - [Benchmark e resultados](docs/BENCHMARK_E_RESULTADOS.md)
 - [Dataset card](docs/DATASET.md)
-- [Protocolo experimental](docs/EXPERIMENT_PROTOCOL.md)
-- [Reprodutibilidade](docs/REPRODUCIBILITY.md)
-- [Estrutura dos arquivos](docs/ESTRUTURA.md)
-- [Checklist de repositorio de artigo](docs/ARTICLE_REPOSITORY_CHECKLIST.md)
+- [Artigo LaTeX](paper/acdlr_artigo_cientifico.tex)
 
-## Como Citar
-
-O repositorio inclui `CITATION.cff`. Antes de publicar, substitua os autores
-genericos pelos nomes finais do grupo e, se houver, adicione DOI ou URL final.
-
-Referencia curta sugerida:
+## Citacao
 
 ```text
 ACDLR Team. ACDLR: Automated Crater Detection and Landing Risk. 2026.

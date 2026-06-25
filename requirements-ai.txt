@@ -1,3 +1,6 @@
-# Optional dependencies for the fair visual CNN comparison.
-# Ellipse R-CNN requires Python 3.12+.
-ellipse-rcnn[hf]>=0.2.2
+# Optional dependencies for the Ellipse R-CNN visual CNN comparison.
+# The setup script also installs external/ellipse-rcnn[hf] as an editable package.
+torch>=2.2.0
+torchvision>=0.17.0
+huggingface-hub>=0.23.0
+safetensors>=0.4.3

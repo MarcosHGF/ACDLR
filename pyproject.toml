@@ -25,6 +25,7 @@ dependencies = [
   "h5py>=3.10.0",
   "scikit-image>=0.22.0",
   "ultralytics>=8.3.0",
+  "kagglehub>=0.3.0",
 ]
 
 [tool.pytest.ini_options]
