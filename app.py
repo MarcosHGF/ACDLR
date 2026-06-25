@@ -519,14 +519,19 @@ with st.sidebar:
     )
     st.divider()
     st.subheader("Benchmark")
-    run_cnn_comparison = st.checkbox(
-        "Rodar Ellipse R-CNN nesta imagem",
+    cnn_ready = ELLIPSE_MODEL_FILE.exists()
+    if cnn_ready:
+        st.success("Ellipse R-CNN instalado. A comparacao sera gerada automaticamente.")
+    else:
+        st.info("Ellipse R-CNN nao instalado. O app mostrara somente o ACDLR puro.")
+        st.code("python scripts/setup_ellipse_rcnn_pretrained.py", language="bash")
+
+    skip_cnn_comparison = st.checkbox(
+        "Modo rapido: pular CNN mesmo instalada",
         value=False,
-        help=(
-            "Desligue para avaliar somente o ACDLR puro. "
-            "Quando a imagem vem do dataset anotado, a tabela ACDLR aparece mesmo sem CNN."
-        ),
+        help="Use apenas quando quiser testar somente o ACDLR sem executar a rede neural.",
     )
+    run_cnn_comparison = cnn_ready and not skip_cnn_comparison
     st.caption(
         "_O novo dataset YOLO local usa imagens 416 x 416 com anotações em labels/. "
         "A escala em metros é usada apenas no fluxo lunar/risco, não na aba de estudo._"
@@ -690,7 +695,7 @@ def render_selected_image_ellipse_comparison(
         st.dataframe([metric_row("ACDLR", acdlr_eval)], width="stretch", hide_index=True)
 
     if not run_cnn:
-        st.caption("CNN desativada na sidebar; exibindo somente os resultados do ACDLR puro.")
+        st.caption("CNN nao executada nesta analise; exibindo somente os resultados do ACDLR puro.")
         return
 
     st.subheader("Comparacao final: ACDLR x Ellipse R-CNN")

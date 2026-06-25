@@ -158,12 +158,14 @@ Na aba **Crateras lunares**:
 
 1. selecione `Dataset padrao`;
 2. escolha um tile;
-3. deixe `Rodar Ellipse R-CNN nesta imagem` desligado para ACDLR puro;
-4. clique em `Run Analysis on selected dataset tile`;
-5. veja a tabela **ACDLR puro nesta imagem** com TP, FP, FN, precision, recall e F1.
+3. clique em `Run Analysis on selected dataset tile`;
+4. veja a tabela **ACDLR puro nesta imagem** com TP, FP, FN, precision, recall e F1.
 
-Para comparar com a CNN na mesma imagem, ligue `Rodar Ellipse R-CNN nesta imagem`
-na sidebar. Se os pesos ainda nao existirem, siga a secao abaixo.
+Se `artifacts/ellipse_rcnn_pretrained/crater-rcnn/model.safetensors` existir, o
+app tambem roda Ellipse R-CNN automaticamente e mostra a comparacao lado a lado.
+Se o peso nao existir, o app mostra somente o ACDLR puro e informa como instalar
+a CNN. Para testar rapidamente sem CNN mesmo com ela instalada, marque
+`Modo rapido: pular CNN mesmo instalada`.
 
 ## Preparar Ellipse R-CNN
 

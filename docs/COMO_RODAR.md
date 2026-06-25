@@ -105,7 +105,7 @@ As labels devem seguir YOLO:
 class x_center y_center width height
 ```
 
-## 4. Rodar O App Somente Com ACDLR
+## 4. Rodar O App
 
 ```bash
 streamlit run app.py
@@ -122,9 +122,8 @@ Na interface:
 1. abra a aba `Crateras lunares`;
 2. selecione `Dataset padrao`;
 3. escolha uma imagem do dataset;
-4. deixe `Rodar Ellipse R-CNN nesta imagem` desligado;
-5. clique em `Run Analysis on selected dataset tile`;
-6. veja os resultados do ACDLR puro no final da analise.
+4. clique em `Run Analysis on selected dataset tile`;
+5. veja os resultados do ACDLR puro no final da analise.
 
 A tabela aparece na secao **Resultados no dataset anotado** e inclui:
 
@@ -134,6 +133,12 @@ Deteccoes, GT, TP, FP, FN, Precision, Recall, F1, Center err/r, Radius err/r
 
 Se a imagem for upload manual, a tabela de acertos so aparece se existir label
 YOLO correspondente. Para imagens sem label, o app mostra apenas analise visual.
+
+Se a CNN ja estiver instalada e o arquivo
+`artifacts/ellipse_rcnn_pretrained/crater-rcnn/model.safetensors` existir, o app
+roda Ellipse R-CNN automaticamente e mostra a comparacao ACDLR x CNN no final.
+Se a CNN nao estiver instalada, o app mostra somente o ACDLR puro. Para testar
+rapidamente sem CNN mesmo com ela instalada, marque `Modo rapido: pular CNN mesmo instalada`.
 
 ## 5. Preparar A CNN Externa
 
@@ -188,13 +193,7 @@ Depois de preparar a CNN:
 streamlit run app.py
 ```
 
-Na sidebar, ligue:
-
-```text
-Rodar Ellipse R-CNN nesta imagem
-```
-
-Ao rodar a analise em uma imagem do dataset, o app mostra:
+Ao rodar a analise em uma imagem do dataset, o app detecta a CNN instalada e mostra:
 
 - tabela do ACDLR puro;
 - visual ACDLR;
